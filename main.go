@@ -34,8 +34,8 @@ import (
 //	https://github.com/upmc-enterprises/registry-creds
 //	https://github.com/jbeda/tgik-controller
 const (
-	DefaultAuthenticationTokenRenewalInterval = 1 * time.Minute
-	DefaultInformersResyncInterval            = 10 * time.Minute
+	DefaultAuthenticationTokenRenewalInterval = 6 * time.Hour
+	DefaultInformersResyncInterval            = 5 * time.Minute
 	DefaultNamespaceBlacklist                 = "ci-cd, default, kube-public, kube-system, monitoring"
 	DefaultPort                               = 5000
 	DefaultShutdownGracePeriod                = 3 * time.Second
@@ -54,6 +54,7 @@ type config struct {
 	NamespaceBlacklist                 string
 	NamespaceBlacklistSet              map[string]struct{}
 	Port                               int
+	SecretName                         string
 	ShutdownGracePeriod                time.Duration
 }
 
@@ -136,11 +137,12 @@ func getConfig() (config, error) {
 		ShutdownGracePeriod:                DefaultShutdownGracePeriod,
 	}
 
-	flag.StringVar(&config.KubeConfigFilePath, "config-file-path", config.KubeConfigFilePath, "Kube config file pathi, optional, only used for testing outside the cluster, can also set the KUBECONFIG env var")
 	flag.DurationVar(&config.AuthenticationTokenRenewalInterval, "auth-token-renewal-interval", config.AuthenticationTokenRenewalInterval, "Authentication token renewal interval - ECR tokens expire after 12 hours so should be less")
-	flag.StringVar(&config.NamespaceBlacklist, "namespace-blacklist", config.NamespaceBlacklist, "Namespace blacklist (comma seperated list)")
 	flag.DurationVar(&config.InformersResyncInterval, "informers-resync-interval", config.InformersResyncInterval, "Shared informers resync interval")
+	flag.StringVar(&config.KubeConfigFilePath, "config-file-path", config.KubeConfigFilePath, "Kube config file pathi, optional, only used for testing outside the cluster, can also set the KUBECONFIG env var")
+	flag.StringVar(&config.NamespaceBlacklist, "namespace-blacklist", config.NamespaceBlacklist, "Namespace blacklist (comma seperated list)")
 	flag.IntVar(&config.Port, "port", config.Port, "Port to surface diagnostics on")
+	flag.StringVar(&config.SecretName, "secret-name", config.SecretName, "Secret name (Optional - If left empty will use the registry domain name)")
 	flag.DurationVar(&config.ShutdownGracePeriod, "shutdown-grace-period", config.ShutdownGracePeriod, "Shutdown grace period")
 	flag.Parse()
 
@@ -208,15 +210,14 @@ func (c *controller) Run(stop <-chan struct{}) {
 
 	tick := time.Tick(c.Config.AuthenticationTokenRenewalInterval)
 	for {
+		log.Println("Controller.Run: Renewing ECR image pull secrets")
+		if err := c.renewECRImagePullSecrets(); err != nil {
+			log.Printf("Controller.Run: Renew ECR image pull secrets error: %s\n", err)
+			runtime.HandleError(err)
+		}
+
 		select {
 		case <-tick:
-			log.Println("Controller.Run: Renewing ECR image pull secrets")
-			if err := c.renewECRImagePullSecrets(); err != nil {
-				log.Printf("Controller.Run: Renew ECR image pull secrets error: %s\n", err)
-				runtime.HandleError(err)
-				continue
-			}
-
 		case <-stop:
 			log.Println("Controller.Run: Received stop signal, exiting loop")
 			return
@@ -249,7 +250,11 @@ func (c *controller) renewECRImagePullSecrets() error {
 
 	endpoint := *(*authTokenData).ProxyEndpoint
 	password := *(*authTokenData).AuthorizationToken
-	secretName := strings.TrimPrefix(endpoint, "https://")
+
+	secretName := c.Config.SecretName
+	if secretName == "" {
+		secretName = strings.TrimPrefix(endpoint, "https://")
+	}
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
