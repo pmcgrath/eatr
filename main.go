@@ -167,6 +167,7 @@ func newK8sClient(configFilePath string) (*kubernetes.Clientset, error) {
 	if configFilePath != "" {
 		config, err = clientcmd.BuildConfigFromFlags("", configFilePath)
 	} else {
+		config, err = rest.InClusterConfig()
 	}
 	if err != nil {
 		return nil, errors.Wrap(err, "create k8s client failed")
