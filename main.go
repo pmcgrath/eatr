@@ -319,27 +319,6 @@ func getECRAuthToken(ctx context.Context) (*ecr.AuthorizationData, error) {
 	return out.AuthorizationData[0], nil
 }
 
-func getActiveK8sNamespaces(ctx context.Context, configFilePath string) ([]string, error) {
-	client, err := newK8sClient(configFilePath)
-	if err != nil {
-		return nil, errors.Wrap(err, "create k8s client failed")
-	}
-
-	list, err := client.CoreV1().Namespaces().List(metav1.ListOptions{})
-	if err != nil {
-		return nil, errors.Wrap(err, "list k8s namespaces failed")
-	}
-
-	var nss []string
-	for _, ns := range list.Items {
-		if ns.Status.Phase == corev1.NamespaceActive {
-			nss = append(nss, ns.Name)
-		}
-	}
-
-	return nss, nil
-}
-
 func newDiagnosticHTTPServer() *http.Server {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
