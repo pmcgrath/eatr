@@ -66,8 +66,7 @@ type controller struct {
 }
 
 func main() {
-	log.Println("Getting config")
-	config, err := getConfig()
+	config, err := getConfig(os.Args)
 	dieIfErr(err)
 
 	log.Printf("Starting listener on port %d\n", config.Port)
@@ -127,7 +126,7 @@ func main() {
 	log.Println("Done")
 }
 
-func getConfig() (config, error) {
+func getConfig(args []string) (config, error) {
 	config := config{
 		AuthenticationTokenRenewalInterval: DefaultAuthenticationTokenRenewalInterval,
 		InformersResyncInterval:            DefaultInformersResyncInterval,
@@ -137,14 +136,15 @@ func getConfig() (config, error) {
 		ShutdownGracePeriod:                DefaultShutdownGracePeriod,
 	}
 
-	flag.DurationVar(&config.AuthenticationTokenRenewalInterval, "auth-token-renewal-interval", config.AuthenticationTokenRenewalInterval, "Authentication token renewal interval - ECR tokens expire after 12 hours so should be less")
-	flag.DurationVar(&config.InformersResyncInterval, "informers-resync-interval", config.InformersResyncInterval, "Shared informers resync interval")
-	flag.StringVar(&config.KubeConfigFilePath, "config-file-path", config.KubeConfigFilePath, "Kube config file pathi, optional, only used for testing outside the cluster, can also set the KUBECONFIG env var")
-	flag.StringVar(&config.NamespaceBlacklist, "namespace-blacklist", config.NamespaceBlacklist, "Namespace blacklist (comma seperated list)")
-	flag.IntVar(&config.Port, "port", config.Port, "Port to surface diagnostics on")
-	flag.StringVar(&config.SecretName, "secret-name", config.SecretName, "Secret name (Optional - If left empty will use the registry domain name)")
-	flag.DurationVar(&config.ShutdownGracePeriod, "shutdown-grace-period", config.ShutdownGracePeriod, "Shutdown grace period")
-	flag.Parse()
+	fs := flag.NewFlagSet(args[0], flag.ExitOnError)
+	fs.DurationVar(&config.AuthenticationTokenRenewalInterval, "auth-token-renewal-interval", config.AuthenticationTokenRenewalInterval, "Authentication token renewal interval - ECR tokens expire after 12 hours so should be less")
+	fs.DurationVar(&config.InformersResyncInterval, "informers-resync-interval", config.InformersResyncInterval, "Shared informers resync interval")
+	fs.StringVar(&config.KubeConfigFilePath, "config-file-path", config.KubeConfigFilePath, "Kube config file pathi, optional, only used for testing outside the cluster, can also set the KUBECONFIG env var")
+	fs.StringVar(&config.NamespaceBlacklist, "namespace-blacklist", config.NamespaceBlacklist, "Namespace blacklist (comma seperated list)")
+	fs.IntVar(&config.Port, "port", config.Port, "Port to surface diagnostics on")
+	fs.StringVar(&config.SecretName, "secret-name", config.SecretName, "Secret name (Optional - If left empty will use the registry domain name)")
+	fs.DurationVar(&config.ShutdownGracePeriod, "shutdown-grace-period", config.ShutdownGracePeriod, "Shutdown grace period")
+	fs.Parse(args[1:])
 
 	config.NamespaceBlacklistSet = make(map[string]struct{})
 	for _, nsName := range strings.Split(config.NamespaceBlacklist, ",") {
