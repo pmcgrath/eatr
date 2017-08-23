@@ -235,7 +235,7 @@ func (c *controller) onNSUpdate(oldNs, newNs *corev1.Namespace) {
 }
 
 func (c *controller) renewECRImagePullSecrets() error {
-	const secretDataTemplate = `{"%s": { "username":"oauth2accesstoken", "password":"%s", "email":"none" } }`
+	const secretDataTemplate = `{ "auths": { "%s": { "auth": "%s" } } }`
 
 	log.Println("Controller.renewECRImagePullSecrets: Getting AWS ECR authorization token")
 	authTokenData, err := c.GetECRAuthToken(context.Background())
@@ -262,9 +262,9 @@ func (c *controller) renewECRImagePullSecrets() error {
 			Name: secretName,
 		},
 		Data: map[string][]byte{
-			corev1.DockerConfigKey: []byte(fmt.Sprintf(secretDataTemplate, endpoint, password)),
+			corev1.DockerConfigJsonKey: []byte(fmt.Sprintf(secretDataTemplate, endpoint, password)),
 		},
-		Type: corev1.SecretTypeDockercfg,
+		Type: corev1.SecretTypeDockerConfigJson,
 	}
 
 	for _, nsName := range nsNames {
