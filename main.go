@@ -33,6 +33,7 @@ import (
 //	https://github.com/coreos/prometheus-operator/blob/master/pkg/prometheus/operator.go
 //	https://github.com/upmc-enterprises/registry-creds
 //	https://github.com/jbeda/tgik-controller
+//	https://engineering.bitnami.com/articles/a-deep-dive-into-kubernetes-controllers.html
 const (
 	DefaultAuthenticationTokenRenewalInterval = 6 * time.Hour
 	DefaultInformersResyncInterval            = 5 * time.Minute
@@ -251,7 +252,7 @@ func (c *controller) onNSUpdate(oldNs, newNs *corev1.Namespace) {
 }
 
 func (c *controller) renewECRImagePullSecrets() error {
-	const secretDataTemplate = `{ "auths": { "%s": { "auth": "%s" } } }`
+	const secretDataTemplate = `{ "auths": { "%s": { "auth": "%s" } } }` // Docker config json file format, see ~/.docker/config.json
 
 	glog.V(6).Infoln("Controller.renewECRImagePullSecrets: Getting AWS ECR authorization token")
 	authTokenData, err := c.GetECRAuthToken(context.Background())
