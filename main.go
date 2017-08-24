@@ -4,24 +4,24 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
+	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -37,6 +37,7 @@ const (
 	DefaultAuthenticationTokenRenewalInterval = 6 * time.Hour
 	DefaultInformersResyncInterval            = 5 * time.Minute
 	DefaultNamespaceBlacklist                 = "ci-cd, default, kube-public, kube-system, monitoring"
+	DefaultLoggingVerbosityLevel              = 0
 	DefaultPort                               = 5000
 	DefaultShutdownGracePeriod                = 3 * time.Second
 )
@@ -51,6 +52,7 @@ type config struct {
 	AuthenticationTokenRenewalInterval time.Duration
 	InformersResyncInterval            time.Duration
 	KubeConfigFilePath                 string
+	LoggingVerbosityLevel              int
 	NamespaceBlacklist                 string
 	NamespaceBlacklistSet              map[string]struct{}
 	Port                               int
@@ -69,61 +71,61 @@ func main() {
 	config, err := getConfig(os.Args)
 	dieIfErr(err)
 
-	log.Printf("Starting listener on port %d\n", config.Port)
+	glog.Infof("Starting listener on port %d\n", config.Port)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Port))
 	dieIfErr(err)
 
-	log.Println("Newing up k8s client")
+	glog.Infoln("Newing up k8s client")
 	client, err := newK8sClient(config.KubeConfigFilePath)
 	dieIfErr(err)
 
-	log.Println("Newing up controller")
+	glog.Infoln("Newing up controller")
 	informersFactory := informers.NewSharedInformerFactory(client, config.InformersResyncInterval)
 	controller, err := newController(client, config, informersFactory, getECRAuthToken)
 	dieIfErr(err)
 
-	log.Println("Newing up diagnostic HTTP server")
+	glog.Infoln("Newing up diagnostic HTTP server")
 	srv := newDiagnosticHTTPServer()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	term := make(chan os.Signal)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
-	log.Println("Starting informers factory")
+	glog.Infoln("Starting informers factory")
 	informersFactory.Start(ctx.Done())
 
-	log.Println("Starting controller go routine")
+	glog.Infoln("Starting controller go routine")
 	go func() {
 		controller.Run(ctx.Done())
-		log.Println("Controller run completed")
+		glog.Infoln("Controller run completed")
 	}()
 
-	log.Println("Starting diagnostic HTTP server go routine")
+	glog.Infoln("Starting diagnostic HTTP server go routine")
 	go func() {
 		err := srv.Serve(listener)
 		if err != http.ErrServerClosed {
 			dieIfErr(errors.Wrap(err, "HTTP serve failed"))
 		}
-		log.Println("HTTP serve completed")
+		glog.Infoln("HTTP serve completed")
 	}()
 
-	log.Println("Starting diagnostic HTTP server gracefull shutdown go routine")
+	glog.Infoln("Starting diagnostic HTTP server gracefull shutdown go routine")
 	go func() {
 		<-ctx.Done()
-		log.Println("Shutting down HTTP server")
+		glog.Infoln("Shutting down HTTP server")
 		if err := srv.Shutdown(context.Background()); err != nil {
 			dieIfErr(errors.Wrap(err, "HTTP server shutdown failed"))
 		}
-		log.Println("HTTP server shutdown completed")
+		glog.Infoln("HTTP server shutdown completed")
 	}()
 
-	log.Println("Waiting...")
+	glog.Infoln("Waiting...")
 	<-term
 	cancel()
 
-	log.Printf("Allowing %s to shutdown\n", config.ShutdownGracePeriod)
+	glog.Infof("Allowing %s to shutdown\n", config.ShutdownGracePeriod)
 	time.Sleep(config.ShutdownGracePeriod)
-	log.Println("Done")
+	glog.Infoln("Done")
 }
 
 func getConfig(args []string) (config, error) {
@@ -131,20 +133,32 @@ func getConfig(args []string) (config, error) {
 		AuthenticationTokenRenewalInterval: DefaultAuthenticationTokenRenewalInterval,
 		InformersResyncInterval:            DefaultInformersResyncInterval,
 		KubeConfigFilePath:                 os.Getenv("KUBECONFIG"),
+		LoggingVerbosityLevel:              DefaultLoggingVerbosityLevel,
 		NamespaceBlacklist:                 DefaultNamespaceBlacklist,
 		Port:                               DefaultPort,
 		ShutdownGracePeriod:                DefaultShutdownGracePeriod,
 	}
 
+	// Using an explicit flagset so we do not mix the glog flags via the client-go package
 	fs := flag.NewFlagSet(args[0], flag.ExitOnError)
 	fs.DurationVar(&config.AuthenticationTokenRenewalInterval, "auth-token-renewal-interval", config.AuthenticationTokenRenewalInterval, "Authentication token renewal interval - ECR tokens expire after 12 hours so should be less")
 	fs.DurationVar(&config.InformersResyncInterval, "informers-resync-interval", config.InformersResyncInterval, "Shared informers resync interval")
 	fs.StringVar(&config.KubeConfigFilePath, "config-file-path", config.KubeConfigFilePath, "Kube config file pathi, optional, only used for testing outside the cluster, can also set the KUBECONFIG env var")
+	fs.IntVar(&config.LoggingVerbosityLevel, "logging-verbosity-level", config.LoggingVerbosityLevel, "Logging verbosity level, can set to 6 or higher to get debug level logs, will also see client-go logs")
 	fs.StringVar(&config.NamespaceBlacklist, "namespace-blacklist", config.NamespaceBlacklist, "Namespace blacklist (comma seperated list)")
 	fs.IntVar(&config.Port, "port", config.Port, "Port to surface diagnostics on")
 	fs.StringVar(&config.SecretName, "secret-name", config.SecretName, "Secret name (Optional - If left empty will use the registry domain name)")
 	fs.DurationVar(&config.ShutdownGracePeriod, "shutdown-grace-period", config.ShutdownGracePeriod, "Shutdown grace period")
 	fs.Parse(args[1:])
+
+	// Limited glog config
+	// See https://stackoverflow.com/questions/28207226/how-do-i-set-the-log-directory-of-glog-from-cod://stackoverflow.com/questions/28207226/how-do-i-set-the-log-directory-of-glog-from-code
+	// Simulate global flags so we can configure some of the glog flags
+	// Need to add global flags as the defaul is to exit on error - i.e. Unknown flags which is how our flags above will be seen
+	fs.VisitAll(func(f *flag.Flag) { _ = flag.String((*f).Name, "", "") })
+	flag.Lookup("logtostderr").Value.Set("true")
+	flag.Lookup("v").Value.Set(strconv.Itoa(config.LoggingVerbosityLevel))
+	flag.Parse()
 
 	config.NamespaceBlacklistSet = make(map[string]struct{})
 	for _, nsName := range strings.Split(config.NamespaceBlacklist, ",") {
@@ -156,7 +170,7 @@ func getConfig(args []string) (config, error) {
 
 func dieIfErr(err error) {
 	if err != nil {
-		fmt.Fprintf(os.Stderr, err.Error())
+		glog.Error(err.Error())
 		os.Exit(2)
 	}
 }
@@ -190,9 +204,11 @@ func newController(client *kubernetes.Clientset, config config, informersFactory
 	nsInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
+				// Added to cache for first time
 				ctrl.onNSAdd(obj.(*corev1.Namespace))
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
+				// Updated existing cache item - updates and informer resyncs
 				ctrl.onNSUpdate(oldObj.(*corev1.Namespace), newObj.(*corev1.Namespace))
 			},
 		},
@@ -202,48 +218,48 @@ func newController(client *kubernetes.Clientset, config config, informersFactory
 }
 
 func (c *controller) Run(stop <-chan struct{}) {
-	log.Println("Controller.Run: Waiting for cache sync")
+	// PENDING: Should I we fail to connect to the cluster ? So subject this to a timeout
+	glog.Infoln("Controller.Run: Waiting for cache sync")
 	if !cache.WaitForCacheSync(stop, c.NamespaceListerSynced) {
-		log.Print("Controller.Run: Timed out waiting for cache sync")
+		glog.Infoln("Controller.Run: Timed out waiting for cache sync")
 		return
 	}
-	log.Println("Controller.Run: Caches are synced")
+	glog.Infoln("Controller.Run: Caches are synced")
 
 	tick := time.Tick(c.Config.AuthenticationTokenRenewalInterval)
 	for {
-		log.Println("Controller.Run: Renewing ECR image pull secrets")
+		glog.V(6).Infoln("Controller.Run: Renewing ECR image pull secrets")
 		if err := c.renewECRImagePullSecrets(); err != nil {
-			log.Printf("Controller.Run: Renew ECR image pull secrets error: %s\n", err)
-			runtime.HandleError(err)
+			glog.Errorf("Controller.Run: Renew ECR image pull secrets error: %s\n", err)
 		}
 
 		select {
 		case <-tick:
 		case <-stop:
-			log.Println("Controller.Run: Received stop signal, exiting loop")
+			glog.Infoln("Controller.Run: Received stop signal, exiting loop")
 			return
 		}
 	}
 }
 
 func (c *controller) onNSAdd(ns *corev1.Namespace) {
-	log.Printf("Controller.onNSAdd: %s\n", ns.GetName())
+	glog.V(6).Infof("Controller.onNSAdd: %s\n", ns.GetName())
 }
 
 func (c *controller) onNSUpdate(oldNs, newNs *corev1.Namespace) {
-	log.Printf("Controller.onNSUpdate: %s   %s\n", oldNs.GetName(), newNs.GetName())
+	glog.V(6).Infof("Controller.onNSUpdate: %s   %s\n", oldNs.GetName(), newNs.GetName())
 }
 
 func (c *controller) renewECRImagePullSecrets() error {
 	const secretDataTemplate = `{ "auths": { "%s": { "auth": "%s" } } }`
 
-	log.Println("Controller.renewECRImagePullSecrets: Getting AWS ECR authorization token")
+	glog.V(6).Infoln("Controller.renewECRImagePullSecrets: Getting AWS ECR authorization token")
 	authTokenData, err := c.GetECRAuthToken(context.Background())
 	if err != nil {
 		return errors.Wrap(err, "get ECR authorization token failed")
 	}
 
-	log.Println("Controller.renewECRImagePullSecrets: Getting active namespace names")
+	glog.V(6).Infoln("Controller.renewECRImagePullSecrets: Getting active namespace names")
 	nsNames, err := c.getActiveNamespaceNames()
 	if err != nil {
 		return errors.Wrap(err, "get active namespace names failed")
@@ -269,22 +285,22 @@ func (c *controller) renewECRImagePullSecrets() error {
 
 	for _, nsName := range nsNames {
 		if _, ok := c.Config.NamespaceBlacklistSet[nsName]; ok {
-			log.Printf("Controller.renewECRImagePullSecrets: Skipping [%s] namespace\n", nsName)
+			glog.V(6).Infof("Controller.renewECRImagePullSecrets: Skipping [%s] namespace\n", nsName)
 			continue
 		}
 
 		if _, err = c.Client.CoreV1().Secrets(nsName).Get(secret.Name, metav1.GetOptions{}); err != nil {
-			log.Printf("Controller.renewECRImagePullSecrets: Creating secret [%s] in [%s] namespace\n", secret.Name, nsName)
+			glog.V(6).Infof("Controller.renewECRImagePullSecrets: Creating secret [%s] in [%s] namespace\n", secret.Name, nsName)
 			_, err = c.Client.CoreV1().Secrets(nsName).Create(secret)
 		} else {
-			log.Printf("Controller.renewECRImagePullSecrets: Updating secret [%s] in [%s] namespace\n", secret.Name, nsName)
+			glog.V(6).Infof("Controller.renewECRImagePullSecrets: Updating secret [%s] in [%s] namespace\n", secret.Name, nsName)
 			_, err = c.Client.CoreV1().Secrets(nsName).Update(secret)
 		}
 		if err != nil {
 			return errors.Wrapf(err, "create or update of secret [%s] in [%s] namespace failed", secret.Name, nsName)
 		}
 	}
-	log.Println("Controller.renewECRImagePullSecrets: Completed")
+	glog.V(6).Infoln("Controller.renewECRImagePullSecrets: Completed")
 
 	return nil
 }
@@ -313,7 +329,7 @@ func getECRAuthToken(ctx context.Context) (*ecr.AuthorizationData, error) {
 	inp := &ecr.GetAuthorizationTokenInput{}
 	out, err := svc.GetAuthorizationTokenWithContext(ctx, inp)
 	if err != nil {
-		return nil, errors.Wrap(err, "get authorization token failed")
+		return nil, errors.Wrap(err, "get ECR authorization token failed")
 	}
 
 	return out.AuthorizationData[0], nil
