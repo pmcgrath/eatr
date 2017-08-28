@@ -13,6 +13,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"k8s.io/client-go/informers"
@@ -47,12 +48,15 @@ func main() {
 	glog.Infoln("Newing up ECR")
 	ecr := newECRClient()
 
-	glog.Infoln("Newing up shared informer factory and controller")
+	glog.Infoln("Newing up shared informer factory and namesapce informer")
 	informersFactory := informers.NewSharedInformerFactory(k8sClient.ClientSet, config.InformersResyncInterval)
 	nsInformer := informersFactory.Core().V1().Namespaces()
 
-	glog.Infoln("Newing up shared informer factory and controller")
-	controller, err := newController(config, k8sClient, nsInformer, ecr)
+	glog.Infoln("Getting prometheus registry")
+	prometheusRegistry := prometheus.DefaultRegisterer.(*prometheus.Registry)
+
+	glog.Infoln("Newing up controller")
+	controller, err := newController(config, k8sClient, nsInformer.Informer(), prometheusRegistry, ecr)
 	dieIfErr(err)
 
 	glog.Infoln("Newing up diagnostic HTTP server")

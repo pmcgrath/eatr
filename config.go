@@ -34,15 +34,7 @@ type config struct {
 }
 
 func getConfig(args []string) (config, error) {
-	config := config{
-		AuthenticationTokenRenewalInterval: defaultAuthenticationTokenRenewalInterval,
-		InformersResyncInterval:            defaultInformersResyncInterval,
-		KubeConfigFilePath:                 os.Getenv("KUBECONFIG"),
-		LoggingVerbosityLevel:              defaultLoggingVerbosityLevel,
-		NamespaceBlacklist:                 defaultNamespaceBlacklist,
-		Port:                               defaultPort,
-		ShutdownGracePeriod:                defaultShutdownGracePeriod,
-	}
+	config := getDefaultConfig()
 
 	// Using an explicit flagset so we do not mix the glog flags via the client-go package
 	fs := flag.NewFlagSet(args[0], flag.ExitOnError)
@@ -65,10 +57,36 @@ func getConfig(args []string) (config, error) {
 	flag.Lookup("v").Value.Set(strconv.Itoa(config.LoggingVerbosityLevel))
 	flag.Parse()
 
-	config.NamespaceBlacklistSet = stringset{}
-	for _, nsName := range strings.Split(config.NamespaceBlacklist, ",") {
-		config.NamespaceBlacklistSet[strings.TrimSpace(nsName)] = empty{}
-	}
+	config.NamespaceBlacklistSet = deriveStringSet(config.NamespaceBlacklist)
 
 	return config, nil
+}
+
+func getDefaultConfig() config {
+	config := config{
+		AuthenticationTokenRenewalInterval: defaultAuthenticationTokenRenewalInterval,
+		InformersResyncInterval:            defaultInformersResyncInterval,
+		KubeConfigFilePath:                 os.Getenv("KUBECONFIG"),
+		LoggingVerbosityLevel:              defaultLoggingVerbosityLevel,
+		NamespaceBlacklist:                 defaultNamespaceBlacklist,
+		Port:                               defaultPort,
+		ShutdownGracePeriod:                defaultShutdownGracePeriod,
+	}
+
+	config.NamespaceBlacklistSet = deriveStringSet(config.NamespaceBlacklist)
+
+	return config
+}
+
+func deriveStringSet(source string) stringset {
+	set := stringset{}
+	if strings.TrimSpace(source) == "" {
+		return set
+	}
+
+	for _, nsName := range strings.Split(source, ",") {
+		set[strings.TrimSpace(nsName)] = empty{}
+	}
+
+	return set
 }

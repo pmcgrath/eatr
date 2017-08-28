@@ -13,7 +13,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	informerscorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -46,7 +45,7 @@ type controller struct {
 	SecretRenewalsCounter prometheus.Counter
 }
 
-func newController(config config, k8sClient *k8sClient, nsInformer informerscorev1.NamespaceInformer, ecr ecrInterface) (*controller, error) {
+func newController(config config, k8sClient k8sInterface, informer cache.SharedInformer, prometheusRegistry *prometheus.Registry, ecrClient ecrInterface) (*controller, error) {
 	secretsCounter := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "secrets_created_total",
 		Help: "Number of secrets that have been created.",
@@ -55,20 +54,20 @@ func newController(config config, k8sClient *k8sClient, nsInformer informerscore
 		Name: "secret_renewals_total",
 		Help: "Number of secret renewals made.",
 	})
-	prometheus.MustRegister(secretsCounter)
-	prometheus.MustRegister(secretRenewalsCounter)
+	prometheusRegistry.MustRegister(secretsCounter)
+	prometheusRegistry.MustRegister(secretRenewalsCounter)
 
 	ctrl := &controller{
 		Config: config,
 		K8S:    k8sClient,
-		NamespaceListerSynced: nsInformer.Informer().HasSynced,
+		NamespaceListerSynced: informer.HasSynced,
 		Queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName),
-		ECR:                   ecr,
+		ECR:                   ecrClient,
 		SecretsCounter:        secretsCounter,
 		SecretRenewalsCounter: secretRenewalsCounter,
 	}
 
-	nsInformer.Informer().AddEventHandler(
+	informer.AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				nsName := (obj.(*corev1.Namespace)).Name
@@ -189,7 +188,7 @@ func (c *controller) renewECRImagePullSecrets(key string) error {
 		c.SecretRenewalsCounter.Inc()
 	}
 
-	glog.V(detailiedGLogLevel).Infoln("Completed")
+	glog.V(detailiedGLogLevel).Infoln("Completed renewing secrets")
 
 	return nil
 }

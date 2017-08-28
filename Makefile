@@ -20,6 +20,10 @@ build:
 	go build -ldflags "-X main.version=${VERSION} -X main.repoBranch=${REPO_BRANCH} -X main.repoVersion=${REPO_VERSION}" .
 
 
+test:
+	go test -v $(go list ./... | grep -v vendor)
+
+
 build-static:
 	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o eatr -ldflags "-X main.version=${VERSION} -X main.repoBranch=${REPO_BRANCH} -X main.repoVersion=${REPO_VERSION}" .
 
