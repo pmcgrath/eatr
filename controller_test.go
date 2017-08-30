@@ -40,6 +40,12 @@ func TestRunControllerWithFakesNoInformerResync(t *testing.T) {
 	ctrl, _ := newController(config, k8sClient, nsInformer, prometheusRegistry, ecrClient)
 	go ctrl.Run(ctx.Done())
 
+	// Simulate informers initial add events
+	nss, _ := k8sClient.GetActiveNamespaceNames()
+	for _, ns := range nss {
+		nsInformer.SimulateAddNamespace(ns)
+	}
+
 	time.Sleep(500 * time.Millisecond)
 	cancel()
 
@@ -63,6 +69,12 @@ func TestRunControllerWithFakesNoInformerResyncButNewNamespaceAdded(t *testing.T
 	ctx, cancel := context.WithCancel(context.Background())
 	ctrl, _ := newController(config, k8sClient, nsInformer, prometheusRegistry, ecrClient)
 	go ctrl.Run(ctx.Done())
+
+	// Simulate informers initial add events
+	nss, _ := k8sClient.GetActiveNamespaceNames()
+	for _, ns := range nss {
+		nsInformer.SimulateAddNamespace(ns)
+	}
 
 	newNamespace := "ns-4"
 	nsInformer.SimulateAddNamespace(newNamespace)
@@ -95,6 +107,12 @@ func TestRunControllerWithFakesAndAllowTwoAuthenticationRenewals(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	ctrl, _ := newController(config, k8sClient, nsInformer, prometheusRegistry, ecrClient)
 	go ctrl.Run(ctx.Done())
+
+	// Simulate informers initial add events
+	nss, _ := k8sClient.GetActiveNamespaceNames()
+	for _, ns := range nss {
+		nsInformer.SimulateAddNamespace(ns)
+	}
 
 	time.Sleep(900 * time.Millisecond)
 	cancel()

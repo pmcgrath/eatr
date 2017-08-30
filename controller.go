@@ -96,11 +96,11 @@ func (c *controller) Run(stop <-chan struct{}) {
 
 	tick := time.Tick(c.Config.AuthenticationTokenRenewalInterval)
 	for {
-		glog.Infoln("Adding queue key to renew for all namespaces")
-		c.Queue.Add(allNamespacesKey)
-
+		// First population will be via the Informers AddFunc
 		select {
 		case <-tick:
+			glog.Infoln("Adding queue key to renew for all namespaces")
+			c.Queue.Add(allNamespacesKey)
 		case <-stop:
 			glog.Infoln("Received stop signal, exiting loop")
 			return

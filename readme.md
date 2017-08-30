@@ -15,8 +15,9 @@ dep init
 
 - Added vendor directory to .gitignore
 
-- To build you can restore with (Will need to sort out GOPATH)
+- DANGER is i am building against HEAD which i mantain - This is not a good idea stability wise
 
+- To build you can restore with (Will need to sort out GOPATH)
 ```
 dep ensure
 ```

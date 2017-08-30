@@ -25,6 +25,7 @@ import (
 //	https://github.com/jbeda/tgik-controller
 //	https://engineering.bitnami.com/articles/a-deep-dive-into-kubernetes-controllers.html
 //	https://github.com/skippbox/kubewatch/
+//	https://github.com/aaronlevy/kube-controller-demo
 var (
 	version     = "1.0"
 	repoBranch  = "NotSet"
