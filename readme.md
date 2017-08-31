@@ -15,7 +15,8 @@ dep init
 
 - Added vendor directory to .gitignore
 
-- DANGER is i am building against HEAD which i mantain - This is not a good idea stability wise
+- DANGER is I am building against HEAD which I mantain - This is not a good idea stability wise
+	-See https://medium.com/@vladimirvivien/using-gos-dep-to-organize-your-kubernetes-client-go-dependencies-509ddc766ed3
 
 - To build you can restore with (Will need to sort out GOPATH)
 ```
