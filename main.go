@@ -56,15 +56,17 @@ func main() {
 	informersFactory := informers.NewSharedInformerFactory(k8sClient.ClientSet, config.InformersResyncInterval)
 	nsInformer := informersFactory.Core().V1().Namespaces()
 
-	glog.Infoln("Getting prometheus registry")
-	prometheusRegistry := prometheus.DefaultRegisterer.(*prometheus.Registry)
+	glog.Infoln("Getting prometheus registry and gatherer - defaults")
+	promRegistry := prometheus.DefaultRegisterer.(*prometheus.Registry)
+	//promGatherer := prometheus.DefaultGatherer.(*prometheus.Gatherer)
+	promGatherer := prometheus.DefaultGatherer
 
 	glog.Infoln("Newing up controller")
-	controller, err := newController(config, k8sClient, nsInformer.Informer(), prometheusRegistry, ecr)
+	controller, err := newController(config, k8sClient, nsInformer.Informer(), promRegistry, ecr)
 	dieIfErr(err)
 
 	glog.Infoln("Newing up diagnostic HTTP server")
-	srv := newDiagnosticHTTPServer()
+	srv := newDiagnosticHTTPServer(promGatherer)
 
 	glog.Infoln("Starting informers factory")
 	informersFactory.Start(ctx.Done())
@@ -112,9 +114,9 @@ func dieIfErr(err error) {
 	}
 }
 
-func newDiagnosticHTTPServer() *http.Server {
+func newDiagnosticHTTPServer(promGatherer prometheus.Gatherer) *http.Server {
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", promhttp.HandlerFor(promGatherer, promhttp.HandlerOpts{}))
 	mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
 	mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
 	mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
