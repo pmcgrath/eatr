@@ -21,7 +21,7 @@ build:
 
 
 test:
-	go test -v $(go list ./... | grep -v vendor)
+	go test -v ./...
 
 
 build-static:
