@@ -1,0 +1,27 @@
+# See https://kubernetes.io/docs/api-reference/v1.7/#clusterrole-v1beta1-rbac
+# See https://kubernetes.io/docs/api-reference/v1.7/#policyrule-v1alpha1-rbac
+# Cluster role which allows
+#   Listing all namespaces
+#   Getting and updating a specific secret in each namespace - Will contain the ECR image pull secret
+#   Can't use resource names to limit the creation of secrets (Would never be able to create !), see https://kubernetes.io/docs/admin/authorization/rbac/#referring-to-resources
+#	"Because resource names are not present in the URL for create, list, watch, and delete collection API requests, those verbs would not be allowed by a rule with resourceNames set"
+
+
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: eatr
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  verbs: ["list", "watch"]
+- apiGroups: [""]
+  resources:
+  - secrets
+  verbs: ["create"]
+- apiGroups: [""]
+  resources:
+  - secrets
+  resourceNames: ["{{ECR_IMAGE_PULL_SECRET_NAME}}"]
+  verbs: ["get", "update"]
