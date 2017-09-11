@@ -26,6 +26,7 @@ import (
 //	https://engineering.bitnami.com/articles/a-deep-dive-into-kubernetes-controllers.html
 //	https://github.com/skippbox/kubewatch/
 //	https://github.com/aaronlevy/kube-controller-demo
+//	https://github.com/heptio/ark
 var (
 	version     = "1.0"
 	repoBranch  = "NotSet"
@@ -33,6 +34,8 @@ var (
 )
 
 func main() {
+	defer glog.Flush()
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	config, err := getConfig(os.Args)
