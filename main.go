@@ -28,7 +28,7 @@ import (
 //	https://github.com/aaronlevy/kube-controller-demo
 //	https://github.com/heptio/ark
 var (
-	version     = "1.0"
+	version     = "0.1"
 	repoBranch  = "NotSet"
 	repoVersion = "NotSet"
 )

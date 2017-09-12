@@ -5,7 +5,7 @@ SHELL=/bin/bash
 # Parameters - defaulted
 DOCKERHUB_REPO_NAME ?= ${USER}
 IMAGE_NAME ?= eatr
-VERSION ?= 1.0
+VERSION ?= 0.1
 
 
 # Derived or calculated
