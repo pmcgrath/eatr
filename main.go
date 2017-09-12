@@ -41,6 +41,7 @@ func main() {
 	config, err := getConfig(os.Args)
 	dieIfErr(err)
 
+	glog.Infof("Starting Version=%s Branch=%s RepoVersion=%s\n", version, repoBranch, repoVersion)
 	glog.Infof("Starting listener on port %d\n", config.Port)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Port))
 	dieIfErr(err)

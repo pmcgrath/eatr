@@ -1,6 +1,10 @@
 #!/bin/bash
 # See 	https://medium.com/microscaling-systems/labelling-automated-builds-on-docker-hub-f3d073fb8e1
 # See	https://docs.docker.com/docker-cloud/builds/advanced/#environment-variables-for-building-and-testing
-# Pending how do we set a VERSION, see https://docs.docker.com/docker-cloud/builds/automated-build/#regexes-and-automated-builds
+# Pending how do we set a VERSION, see
+#	https://docs.docker.com/docker-cloud/builds/automated-build/#regexes-and-automated-builds
+#	https://stackoverflow.com/questions/25328166/docker-hub-automated-build-tagging
+
+echo "Within hook [${IMAGE_NAME}] [${SOURCE_COMMIT}]"
 
 docker image build --build-arg REPO_BRANCH=${SOURCE_BRANCH} --build-arg REPO_VERSION=${SOURCE_COMMIT} --build-arg VERSION=${VERSION} --tag ${IMAGE_NAME} .
