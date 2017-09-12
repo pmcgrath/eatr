@@ -4,7 +4,13 @@
 # Pending how do we set a VERSION, see
 #	https://docs.docker.com/docker-cloud/builds/automated-build/#regexes-and-automated-builds
 #	https://stackoverflow.com/questions/25328166/docker-hub-automated-build-tagging
+#	Some of the env vars are not actually being set, see https://github.com/docker/hub-feedback/issues/600#issuecomment-249673381
+#	Could use a posti_push hook to set a tag, see http://windsock.io/automated-docker-image-builds-with-multiple-tags/
+# Can use this to examine labels without pulling, see https://microbadger.com/images/pmcgrath/eatr
 
-echo "Within hook [${IMAGE_NAME}] [${SOURCE_COMMIT}]"
+# Some are not being set as expected, see https://github.com/docker/hub-feedback/issues/600#issuecomment-249673381
+if [[ -z $SOURCE_BRANCH ]]; then $SOURCE_BRANCH=$(git rev-parse --abbrev-ref HEAD); fi
+if [[ -z $SOURCE_COMMIT ]]; then $SOURCE_COMMIT=$(git rev-parse HEAD); fi
 
+# Should match ../Makefile
 docker image build --build-arg REPO_BRANCH=${SOURCE_BRANCH} --build-arg REPO_VERSION=${SOURCE_COMMIT} --build-arg VERSION=${VERSION} --tag ${IMAGE_NAME} .

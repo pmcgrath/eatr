@@ -29,4 +29,5 @@ build-static:
 
 
 docker-build:
+	@# Should match .hook/build
 	docker image build --build-arg REPO_BRANCH=${REPO_BRANCH} --build-arg REPO_VERSION=${REPO_VERSION} --build-arg VERSION=${VERSION} --tag ${FULL_IMAGE_NAME_AND_TAG} .
