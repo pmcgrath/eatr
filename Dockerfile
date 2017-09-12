@@ -6,7 +6,6 @@ ARG        VERSION=0.1
 ARG        REPO_BRANCH
 ARG        REPO_VERSION
 
-# Assumes vendor directory exists already so no need to run "go get" here
 COPY       .  /go/src/app/
 WORKDIR    /go/src/app
 RUN        go get -u github.com/golang/dep/cmd/dep && \
@@ -15,9 +14,8 @@ RUN        go get -u github.com/golang/dep/cmd/dep && \
 
 # For an explanation of why we need to repeat the ARGs, see https://github.com/moby/moby/issues/34129
 # Also needed to copy the CA certifictes to scratch as it has no content and the AWS package calls will fail
-# Might also need an empty /tmp for the k8s apimachinery/pkg/util/runtime package's HandleError call - May avoid using this ? Not sure yet
 FROM       scratch
-ARG        VERSION=1.0
+ARG        VERSION=0.1
 ARG        REPO_VERSION
 LABEL      version=${VERSION}
 LABEL      repo.version=${REPO_VERSION}
