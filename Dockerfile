@@ -2,7 +2,7 @@ ARG        GO_VERSION=1.9.0
 
 FROM       golang:${GO_VERSION} as builder
 
-ARG        VERSION=1.0
+ARG        VERSION=0.1
 ARG        REPO_BRANCH
 ARG        REPO_VERSION
 
