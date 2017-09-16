@@ -1,16 +1,19 @@
-#!/bin/bash
-# See 	https://medium.com/microscaling-systems/labelling-automated-builds-on-docker-hub-f3d073fb8e1
-# See	https://docs.docker.com/docker-cloud/builds/advanced/#environment-variables-for-building-and-testing
-# Pending how do we set a VERSION, see
-#	https://docs.docker.com/docker-cloud/builds/automated-build/#regexes-and-automated-builds
-#	https://stackoverflow.com/questions/25328166/docker-hub-automated-build-tagging
-#	Some of the env vars are not actually being set, see https://github.com/docker/hub-feedback/issues/600#issuecomment-249673381
-#	Could use a posti_push hook to set a tag, see http://windsock.io/automated-docker-image-builds-with-multiple-tags/
-# Can use this to examine labels without pulling, see https://microbadger.com/images/pmcgrath/eatr
+#!/usr/bin/env bash
+# See https://docs.docker.com/docker-cloud/builds/advanced/#custom-build-phase-hooks
+# I have found the SOURCE_COMMIT env var is not set like the doc indicates, there is a GIT_SHA1 variable which we can use instead ?
+# To see what env vars we have include printenv below
+set -e
 
-# Some are not being set as expected, see https://github.com/docker/hub-feedback/issues/600#issuecomment-249673381
-if [[ -z $SOURCE_BRANCH ]]; then $SOURCE_BRANCH=$(git rev-parse --abbrev-ref HEAD); fi
-if [[ -z $SOURCE_COMMIT ]]; then $SOURCE_COMMIT=$(git rev-parse HEAD); fi
+# Build date
+BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-# Should match ../Makefile
-docker image build --build-arg REPO_BRANCH=${SOURCE_BRANCH} --build-arg REPO_VERSION=${SOURCE_COMMIT} --build-arg VERSION=${VERSION} --tag ${IMAGE_NAME} .
+# Get version from file
+VERSION=$(cat VERSION)
+
+# IMAGE_NAME env var comes from the automated build
+docker image build \
+	--build-arg BUILD_DATE=${BUILD_DATE} \
+	--build-arg REPO_BRANCH=${SOURCE_BRANCH} \
+	--build-arg REPO_VERSION=${GIT_SHA1} \
+	--build-arg VERSION=${VERSION} \
+	--tag ${IMAGE_NAME} .
