@@ -59,7 +59,6 @@ func main() {
 
 	glog.Infoln("Getting prometheus registry and gatherer - defaults")
 	promRegistry := prometheus.DefaultRegisterer.(*prometheus.Registry)
-	//promGatherer := prometheus.DefaultGatherer.(*prometheus.Gatherer)
 	promGatherer := prometheus.DefaultGatherer
 
 	glog.Infoln("Newing up controller")
