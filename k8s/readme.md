@@ -1,24 +1,29 @@
 # Create AWS account to pull images
-- ecr-puller - one for the registry
-- Used terraform to create the user with an existing AWS policy to allow pulls
-	- Needed to run terrafrom init
-	- PENDING - Can we control the location of the plugins content - do not want to commit this - too big, is this new ?
-- YAML files are templates rather than manifests - Can we use for CD - See http://ksonnet.heptio.com/ and http://jsonnet.org/
-- Thought about running as cronjob, but would not deal with new namespaces
+- ecr-puller is the default user
+- You need to create this before completing the setup, have not included in the Makefile as there are any number of ways to manage this
+	- Included a terraform aws-ecr-users.tf file as a reference
+	- Could create with the followign aws commands
+
+	```
+		aws iam create-user --user-name ecr-puller
+		aws iam attach-user-policy --policy-arn arn:aws:iam::aws:policy/AdministratorAccess --user-name ecr-puller
+	```
 
 
 
 # Setup
-```
-# Review the Makefile vars in particular the AWS profile
+- YAML files are templates rather than manifests - Can we use for CD - See http://ksonnet.heptio.com/ and http://jsonnet.org/
 
-# Create AWS user(s) and permissions
-make aws-create-user-plan
-make aws-create-user-apply
+```
+# Review the Makefile vars
 
 # Prepare k8s cluster - Namespace, ClusterRoles, ClusterRoleBindings, etc.
-make k8s-prepare
+# Where you already have the ecr-puller access key
+make k8s-prepare AWS_ACCOUNT_ID=Replace-me AWS_ACCESS_KEY_ID=Replace-me AWS_SECRET_ACCESS_KEY=Replace-me
 
 # Deply eatr pod
-make k8s-deployment-up
+make k8s-deployment-up AWS_ACCOUNT_ID=Replace-me 
+
+# Remove eatr pod
+make k8s-deployment-down AWS_ACCOUNT_ID=Replace-me 
 ```
