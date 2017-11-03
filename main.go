@@ -28,27 +28,40 @@ import (
 //	https://github.com/aaronlevy/kube-controller-demo
 //	https://github.com/heptio/ark
 var (
-	version     = "0.1"
+	version     = "NotSet"
 	repoBranch  = "NotSet"
 	repoVersion = "NotSet"
 )
 
 func main() {
+	if err := runMain(); err != nil {
+		glog.Error(err.Error())
+		os.Exit(2)
+	}
+}
+
+func runMain() error {
 	defer glog.Flush()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	config, err := getConfig(os.Args)
-	dieIfErr(err)
+	if err != nil {
+		return errors.Wrap(err, "getConfig failed")
+	}
 
 	glog.Infof("Starting Version=%s Branch=%s RepoVersion=%s\n", version, repoBranch, repoVersion)
 	glog.Infof("Starting listener on port %d\n", config.Port)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Port))
-	dieIfErr(err)
+	if err != nil {
+		return errors.Wrap(err, "listener failed")
+	}
 
 	glog.Infoln("Newing up k8s client")
 	k8sClient, err := newK8sClient(config.KubeConfigFilePath)
-	dieIfErr(err)
+	if err != nil {
+		return errors.Wrap(err, "newK8sClient failed")
+	}
 
 	glog.Infoln("Newing up ECR")
 	ecr := newECRClient()
@@ -63,7 +76,9 @@ func main() {
 
 	glog.Infoln("Newing up controller")
 	controller, err := newController(config, k8sClient, nsInformer.Informer(), promRegistry, ecr)
-	dieIfErr(err)
+	if err != nil {
+		return errors.Wrap(err, "newController failure")
+	}
 
 	glog.Infoln("Newing up diagnostic HTTP server")
 	srv := newDiagnosticHTTPServer(promGatherer)
@@ -105,13 +120,6 @@ func main() {
 	glog.Infof("Allowing %s to shutdown\n", config.ShutdownGracePeriod)
 	time.Sleep(config.ShutdownGracePeriod)
 	glog.Infoln("Done")
-}
-
-func dieIfErr(err error) {
-	if err != nil {
-		glog.Error(err.Error())
-		os.Exit(2)
-	}
 }
 
 func newDiagnosticHTTPServer(promGatherer prometheus.Gatherer) *http.Server {
