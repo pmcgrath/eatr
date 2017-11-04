@@ -17,8 +17,8 @@ aws_region=$1
 aws_user_name=$2
 k8s_namespace=$3
 k8s_secret_name=$4
-aws_access_key_id=$5
-aws_secret_access_key=$6
+[[ $# -gt 4 ]] && aws_access_key_id=$5 || aws_access_key_id=
+[[ $# -gt 5 ]] && aws_secret_access_key=$6 || aws_secret_access_key=
 
 # Cater for optional parameters
 if [[ -z $aws_access_key_id ]] || [[ -z $aws_secret_access_key ]]; then 
