@@ -31,30 +31,24 @@ func newK8sClient(configFilePath string) (*k8sClient, error) {
 	return &k8sClient{ClientSet: clientSet}, nil
 }
 
-func (k *k8sClient) GetActiveNamespaceNames() ([]string, error) {
-	list, err := k.ClientSet.CoreV1().Namespaces().List(metav1.ListOptions{})
-	if err != nil {
-		return nil, errors.Wrap(err, "list k8s namespaces failed")
-	}
+func (k *k8sClient) CreateSecret(ns string, s *corev1.Secret) (*corev1.Secret, error) {
+	return k.ClientSet.CoreV1().Secrets(ns).Create(s)
+}
 
-	var nss []string
-	for _, ns := range list.Items {
-		if ns.Status.Phase != corev1.NamespaceActive {
-			continue
-		}
+func (k *k8sClient) GetNamespace(name string) (*corev1.Namespace, error) {
+	return k.ClientSet.CoreV1().Namespaces().Get(name, metav1.GetOptions{})
+}
 
-		nss = append(nss, ns.Name)
-	}
-
-	return nss, nil
+func (k *k8sClient) GetNamespaces() (*corev1.NamespaceList, error) {
+	return k.ClientSet.CoreV1().Namespaces().List(metav1.ListOptions{})
 }
 
 func (k *k8sClient) GetSecret(ns, name string) (*corev1.Secret, error) {
 	return k.ClientSet.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
 }
 
-func (k *k8sClient) CreateSecret(ns string, s *corev1.Secret) (*corev1.Secret, error) {
-	return k.ClientSet.CoreV1().Secrets(ns).Create(s)
+func (k *k8sClient) GetSecrets(ns string) (*corev1.SecretList, error) {
+	return k.ClientSet.CoreV1().Secrets(ns).List(metav1.ListOptions{})
 }
 
 func (k *k8sClient) UpdateSecret(ns string, s *corev1.Secret) (*corev1.Secret, error) {

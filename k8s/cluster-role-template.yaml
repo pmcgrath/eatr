@@ -1,5 +1,5 @@
-# See https://kubernetes.io/docs/api-reference/v1.7/#clusterrole-v1beta1-rbac
-# See https://kubernetes.io/docs/api-reference/v1.7/#policyrule-v1alpha1-rbac
+# See   https://kubernetes.io/docs/api-reference/v1.8/#clusterrole-v1beta1-rbac
+#       https://kubernetes.io/docs/api-reference/v1.8/#policyrule-v1beta1-rbac
 # Cluster role which allows
 #   Listing all namespaces
 #   Getting and updating a specific secret in each namespace - Will contain the ECR image pull secret
@@ -23,5 +23,5 @@ rules:
 - apiGroups: [""]
   resources:
   - secrets
-  resourceNames: ["{{ECR_IMAGE_PULL_SECRET_NAME}}"]
+  resourceNames: [""]
   verbs: ["get", "update"]

@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/pkg/errors"
@@ -14,8 +16,11 @@ func newECRClient() ecrClient {
 	return ecrClient(0)
 }
 
-func (e ecrClient) GetAuthToken(ctx context.Context) (*ecr.AuthorizationData, error) {
-	svc := ecr.New(session.New())
+func (e ecrClient) GetAuthToken(ctx context.Context, region, id, secret string) (*ecr.AuthorizationData, error) {
+	creds := credentials.NewStaticCredentials(id, secret, "")
+	config := aws.NewConfig().WithCredentials(creds).WithRegion(region)
+	sess, _ := session.NewSession(config)
+	svc := ecr.New(sess)
 
 	inp := &ecr.GetAuthorizationTokenInput{}
 	out, err := svc.GetAuthorizationTokenWithContext(ctx, inp)

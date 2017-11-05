@@ -10,8 +10,9 @@ import (
 
 const (
 	defaultAuthenticationTokenRenewalInterval = 6 * time.Hour
+	defaultHostNamespace                      = "ci-cd"
 	defaultInformersResyncInterval            = 5 * time.Minute
-	defaultNamespaceBlacklist                 = "ci-cd, default, kube-public, kube-system, monitoring"
+	defaultNamespaceBlacklist                 = defaultHostNamespace + ", default, kube-public, kube-system, monitoring"
 	defaultLoggingVerbosityLevel              = 0
 	defaultPort                               = 5000
 	defaultShutdownGracePeriod                = 3 * time.Second
@@ -21,15 +22,26 @@ type empty struct{}
 
 type stringset map[string]empty
 
+func (set stringset) Keys() []string {
+	ss := make([]string, len(set))
+	i := 0
+	for k, _ := range set {
+		ss[i] = k
+		i++
+	}
+
+	return ss
+}
+
 type config struct {
 	AuthenticationTokenRenewalInterval time.Duration
+	HostNamespace                      string
 	InformersResyncInterval            time.Duration
 	KubeConfigFilePath                 string
 	LoggingVerbosityLevel              int
 	NamespaceBlacklist                 string
 	NamespaceBlacklistSet              stringset
 	Port                               int
-	SecretName                         string
 	ShutdownGracePeriod                time.Duration
 }
 
@@ -39,12 +51,12 @@ func getConfig(args []string) (config, error) {
 	// Using an explicit flagset so we do not mix the glog flags via the client-go package
 	fs := flag.NewFlagSet(args[0], flag.ExitOnError)
 	fs.DurationVar(&config.AuthenticationTokenRenewalInterval, "auth-token-renewal-interval", config.AuthenticationTokenRenewalInterval, "Authentication token renewal interval - ECR tokens expire after 12 hours so should be less")
+	fs.StringVar(&config.HostNamespace, "host-namespace", config.HostNamespace, "Host namespace")
 	fs.DurationVar(&config.InformersResyncInterval, "informers-resync-interval", config.InformersResyncInterval, "Shared informers resync interval")
-	fs.StringVar(&config.KubeConfigFilePath, "config-file-path", config.KubeConfigFilePath, "Kube config file pathi, optional, only used for testing outside the cluster, can also set the KUBECONFIG env var")
+	fs.StringVar(&config.KubeConfigFilePath, "config-file-path", config.KubeConfigFilePath, "Kube config file path, optional, only used for testing outside the cluster, can also set the KUBECONFIG env var")
 	fs.IntVar(&config.LoggingVerbosityLevel, "logging-verbosity-level", config.LoggingVerbosityLevel, "Logging verbosity level, can set to 6 or higher to get debug level logs, will also see client-go logs")
 	fs.StringVar(&config.NamespaceBlacklist, "namespace-blacklist", config.NamespaceBlacklist, "Namespace blacklist (comma seperated list)")
 	fs.IntVar(&config.Port, "port", config.Port, "Port to surface diagnostics on")
-	fs.StringVar(&config.SecretName, "secret-name", config.SecretName, "Secret name (Optional - If left empty will use the registry domain name)")
 	fs.DurationVar(&config.ShutdownGracePeriod, "shutdown-grace-period", config.ShutdownGracePeriod, "Shutdown grace period")
 	fs.Parse(args[1:])
 
@@ -65,6 +77,7 @@ func getConfig(args []string) (config, error) {
 func getDefaultConfig() config {
 	config := config{
 		AuthenticationTokenRenewalInterval: defaultAuthenticationTokenRenewalInterval,
+		HostNamespace:                      defaultHostNamespace,
 		InformersResyncInterval:            defaultInformersResyncInterval,
 		KubeConfigFilePath:                 os.Getenv("KUBECONFIG"),
 		LoggingVerbosityLevel:              defaultLoggingVerbosityLevel,

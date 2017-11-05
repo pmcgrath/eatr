@@ -93,22 +93,26 @@ func runMain() error {
 	}()
 
 	glog.Infoln("Starting diagnostic HTTP server go routine")
-	go func() {
+	// PENDING:
+	go func() error {
 		err := srv.Serve(listener)
 		if err != http.ErrServerClosed {
-			dieIfErr(errors.Wrap(err, "HTTP serve failed"))
+			return errors.Wrap(err, "HTTP serve failed")
 		}
 		glog.Infoln("HTTP serve completed")
+		return nil
 	}()
 
 	glog.Infoln("Starting diagnostic HTTP server gracefull shutdown go routine")
-	go func() {
+	// PENDING:
+	go func() error {
 		<-ctx.Done()
 		glog.Infoln("Shutting down HTTP server")
 		if err := srv.Shutdown(context.Background()); err != nil {
-			dieIfErr(errors.Wrap(err, "HTTP server shutdown failed"))
+			return errors.Wrap(err, "HTTP server shutdown failed")
 		}
 		glog.Infoln("HTTP server shutdown completed")
+		return nil
 	}()
 
 	glog.Infoln("Waiting...")
@@ -120,6 +124,8 @@ func runMain() error {
 	glog.Infof("Allowing %s to shutdown\n", config.ShutdownGracePeriod)
 	time.Sleep(config.ShutdownGracePeriod)
 	glog.Infoln("Done")
+
+	return nil
 }
 
 func newDiagnosticHTTPServer(promGatherer prometheus.Gatherer) *http.Server {
