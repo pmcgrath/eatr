@@ -1,4 +1,7 @@
-# Switch to bash
+# Assumption for some targets is that the golang is already installed
+
+
+# Switch default shell to be bash
 SHELL=/bin/bash
 
 
@@ -19,8 +22,16 @@ REPO_VERSION = $(shell git rev-parse HEAD)
 default: build
 
 
+ensure-deps:
+	[[ -z "$(which dep)" ]] && go get -u github.com/golang/dep/cmd/dep
+	dep ensure -v
+
+
+build-with-deps: ensure-deps build
+
+
 build:
-	@#Fast build - so we can run without having to wait for full static build
+	@# Fast build - so we can run without having to wait for full static build
 	go build -ldflags "-X main.version=${VERSION} -X main.repoBranch=${REPO_BRANCH} -X main.repoVersion=${REPO_VERSION}" .
 
 

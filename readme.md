@@ -73,7 +73,7 @@ go get -u github.com/golang/dep/cmd/dep
 dep init -v
 
 # Now check client-go deps for a specific tag
-pushd
+pushd .
 cd ~/go/src/k9
 
 ## List tags
@@ -123,11 +123,8 @@ dep ensure -v k8s.io/apimachinery@abe34e4f5b4413c282a83011892cbeea5b32223b
 
 ## Build locally
 ```
-# Ensure you have dep
-go get -u github.com/golang/dep/cmd/dep
-
-# Ensure we have vendor content
-dep ensure -v
+# Ensure you have dep tool and we have vendor content - Only need this once
+make ensure-deps
 
 # Build
 make build
