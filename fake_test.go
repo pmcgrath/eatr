@@ -8,8 +8,9 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecr"
+
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1 "k8s.io/client-go/pkg/api/v1" // corev1 "k8s.io/api/core/v1"     Waiting on the deps to settle, so reverted to what would work for clinet-go v4.0.0-beta.0
 	"k8s.io/client-go/tools/cache"
 )
 
