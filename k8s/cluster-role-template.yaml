@@ -23,5 +23,5 @@ rules:
 - apiGroups: [""]
   resources:
   - secrets
-  resourceNames: [""]
+  resourceNames: ["*.dkr.ecr.*.amazonaws.com"]  # PENDING: Can't use this, will need explicit names, so will probably need to make this dynamic, may also need list now
   verbs: ["get", "update"]

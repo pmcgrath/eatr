@@ -93,7 +93,7 @@ func runMain() error {
 	}()
 
 	glog.Infoln("Starting diagnostic HTTP server go routine")
-	// PENDING:
+	// PENDING: Can I use errgroup package, see https://godoc.org/golang.org/x/sync/errgroup
 	go func() error {
 		err := srv.Serve(listener)
 		if err != http.ErrServerClosed {
@@ -103,8 +103,8 @@ func runMain() error {
 		return nil
 	}()
 
-	glog.Infoln("Starting diagnostic HTTP server gracefull shutdown go routine")
-	// PENDING:
+	glog.Infoln("Starting diagnostic HTTP server graceful shutdown go routine")
+	// PENDING: Can I use errgroup package, see https://godoc.org/golang.org/x/sync/errgroup
 	go func() error {
 		<-ctx.Done()
 		glog.Infoln("Shutting down HTTP server")

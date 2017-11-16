@@ -12,6 +12,7 @@
 
 
 # Setup
+- PENDING - this needs fixing
 - YAML files are templates rather than manifests - Can we use for CD - See http://ksonnet.heptio.com/ and http://jsonnet.org/
 
 ```

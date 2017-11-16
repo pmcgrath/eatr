@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -38,13 +39,22 @@ func (f *FakeECRClient) GetAuthToken(ctx context.Context, region, id, secret str
 	return f.GetAuthTokenFn(ctx, region, id, secret)
 }
 
-// K8S client fake
+// Seed data to initialise a FakeK8sClient
+type FakeK8SClientSeedNamespace struct {
+	Name     string
+	IsActive bool
+	Labels   map[string]string
+	Secrets  []string
+}
+
+// K8S client fake, also has some extra helpers and state tracking for tests
 type FakeK8SClient struct {
-	mutex              sync.RWMutex
-	namespaces         *corev1.NamespaceList
-	secrets            *corev1.SecretList
-	createdSecretCount int
-	updatedSecretCount int
+	mutex                      sync.RWMutex
+	namespaces                 *corev1.NamespaceList
+	secrets                    *corev1.SecretList
+	createdNamespaceSecretKeys sets.String
+	newlyCreatedSecretCount    int
+	updatedSecretCount         int
 
 	CreateSecretFn  func(string, *corev1.Secret) (*corev1.Secret, error)
 	GetNamespaceFn  func(string) (*corev1.Namespace, error)
@@ -54,13 +64,30 @@ type FakeK8SClient struct {
 	UpdateSecretFn  func(string, *corev1.Secret) (*corev1.Secret, error)
 }
 
-func NewFakeK8SClient(nsNames, inactiveNsNames []string) *FakeK8SClient {
+func NewFakeK8SClient(seed []FakeK8SClientSeedNamespace) *FakeK8SClient {
 	const indexNotFound = -1
 	k8sNotFoundErr := &k8serr.StatusError{ErrStatus: metav1.Status{Reason: metav1.StatusReasonNotFound}}
 
 	f := &FakeK8SClient{
-		namespaces: &corev1.NamespaceList{Items: make([]corev1.Namespace, len(nsNames))},
-		secrets:    &corev1.SecretList{},
+		namespaces:                 &corev1.NamespaceList{},
+		secrets:                    &corev1.SecretList{},
+		createdNamespaceSecretKeys: sets.NewString(),
+	}
+
+	for _, seedNS := range seed {
+		phase := corev1.NamespaceActive
+		if !seedNS.IsActive {
+			phase = corev1.NamespaceTerminating
+		}
+
+		f.namespaces.Items = append(f.namespaces.Items,
+			corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: seedNS.Name, Namespace: seedNS.Name, Labels: seedNS.Labels}, Status: corev1.NamespaceStatus{Phase: phase}})
+
+		for _, secretName := range seedNS.Secrets {
+			// We don't need a type or data for our tests
+			f.secrets.Items = append(f.secrets.Items,
+				corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: seedNS.Name}})
+		}
 	}
 
 	getSecretIndexFn := func(ns, name string) int {
@@ -81,25 +108,13 @@ func NewFakeK8SClient(nsNames, inactiveNsNames []string) *FakeK8SClient {
 		return indexNotFound
 	}
 
-	for i, nsName := range nsNames {
-		f.namespaces.Items[i] = corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{Name: nsName, Namespace: nsName},
-			Status:     corev1.NamespaceStatus{Phase: corev1.NamespaceActive},
-		}
-	}
-	for _, inactiveNsName := range inactiveNsNames {
-		if idx := getNamespaceIndexFn(inactiveNsName); idx != indexNotFound {
-			f.namespaces.Items[idx].Status = corev1.NamespaceStatus{Phase: corev1.NamespaceActive}
-		}
-	}
-
 	f.CreateSecretFn = func(ns string, s *corev1.Secret) (*corev1.Secret, error) {
 		f.mutex.Lock()
 		defer f.mutex.Unlock()
-
 		s.ObjectMeta.Namespace = ns
 		f.secrets.Items = append(f.secrets.Items, *s)
-		f.createdSecretCount++
+		f.createdNamespaceSecretKeys[ns+":"+(*s).Name] = sets.Empty{}
+		f.newlyCreatedSecretCount++
 
 		return s, nil
 	}
@@ -113,14 +128,14 @@ func NewFakeK8SClient(nsNames, inactiveNsNames []string) *FakeK8SClient {
 			return nil, k8sNotFoundErr
 		}
 
-		return &f.namespaces.Items[idx], nil // PENDING: Mutation - can I use DeepClone
+		return f.namespaces.Items[idx].DeepCopy(), nil
 	}
 
 	f.GetNamespacesFn = func() (*corev1.NamespaceList, error) {
 		f.mutex.RLock()
 		defer f.mutex.RUnlock()
 
-		return f.namespaces, nil // PENDING: Mutation - can I use DeepClone
+		return f.namespaces.DeepCopy(), nil
 	}
 
 	f.GetSecretFn = func(ns, name string) (*corev1.Secret, error) {
@@ -132,14 +147,20 @@ func NewFakeK8SClient(nsNames, inactiveNsNames []string) *FakeK8SClient {
 			return nil, k8sNotFoundErr
 		}
 
-		return &f.secrets.Items[idx], nil // PENDING: Mutation - can I use DeepClone
+		return f.secrets.Items[idx].DeepCopy(), nil
 	}
 
 	f.GetSecretsFn = func(ns string) (*corev1.SecretList, error) {
 		f.mutex.RLock()
 		defer f.mutex.RUnlock()
 
-		return f.secrets, nil
+		ss := &corev1.SecretList{}
+		for _, s := range f.secrets.Items {
+			if s.Namespace == ns {
+				ss.Items = append(ss.Items, s)
+			}
+		}
+		return ss, nil
 	}
 
 	f.UpdateSecretFn = func(ns string, s *corev1.Secret) (*corev1.Secret, error) {
@@ -151,7 +172,8 @@ func NewFakeK8SClient(nsNames, inactiveNsNames []string) *FakeK8SClient {
 			return nil, k8sNotFoundErr
 		}
 
-		f.secrets.Items[idx] = s
+		f.secrets.Items[idx] = *s.DeepCopy()
+		f.createdNamespaceSecretKeys[ns+":"+(*s).Name] = sets.Empty{}
 		f.updatedSecretCount++
 
 		return s, nil
@@ -184,31 +206,34 @@ func (f *FakeK8SClient) UpdateSecret(ns string, s *corev1.Secret) (*corev1.Secre
 	return f.UpdateSecretFn(ns, s)
 }
 
-func (f *FakeK8SClient) getSecretKey(ns, name string) string {
-	return ns + "***" + name
+// Insert new namespace record - used for populating the local cache with no counter increments - post initialization - needed to test post start new namesapce handling
+func (f *FakeK8SClient) InsertNewNamespaceRecord(ns *corev1.Namespace) {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	// Have assumed it is not a duplicate - lets be optimistic for tests
+	f.namespaces.Items = append(f.namespaces.Items, *ns.DeepCopy())
 }
 
-/*
-func (f *FakeK8SClient) Secrets() []*corev1.Secret {
-	f.mutex.RLock()
-	defer f.mutex.RUnlock()
+// Update namespace record - used for altering the local cache with no counter increments - post initialization - needed to test post start updated namesapce handling
+func (f *FakeK8SClient) UpdateNamespaceRecord(ns *corev1.Namespace) {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
 
-	ss := make([]*corev1.Secret, len(f.secrets), len(f.secrets))
-	i := 0
-	for _, v := range f.secrets {
-		ss[i] = v
-		i++
+	// Have not handled no match - lets be optimistic for tests
+	for i, c := range f.namespaces.Items {
+		if c.Name == (*ns).Name {
+			f.namespaces.Items[i] = *ns
+			return
+		}
 	}
-
-	return ss
 }
-*/
 
-func (f *FakeK8SClient) CreatedSecretCount() int {
+func (f *FakeK8SClient) NewlyCreatedSecretCount() int {
 	f.mutex.RLock()
 	defer f.mutex.RUnlock()
 
-	return f.createdSecretCount
+	return f.newlyCreatedSecretCount
 }
 
 func (f *FakeK8SClient) UpdatedSecretCount() int {
@@ -216,6 +241,30 @@ func (f *FakeK8SClient) UpdatedSecretCount() int {
 	defer f.mutex.RUnlock()
 
 	return f.updatedSecretCount
+}
+
+// Total secrets created - newly created + existing secrets that were updated
+func (f *FakeK8SClient) TotalSecretsCreated() int {
+	f.mutex.RLock()
+	defer f.mutex.RUnlock()
+
+	return f.newlyCreatedSecretCount + f.updatedSecretCount
+}
+
+func (f *FakeK8SClient) DistinctNamespacedSecretKeysCreated() string {
+	f.mutex.RLock()
+	defer f.mutex.RUnlock()
+
+	r := ""
+	for i, k := range f.createdNamespaceSecretKeys.List() {
+		if i == 0 {
+			r = k
+			continue
+		}
+		r += "," + k
+	}
+
+	return r
 }
 
 // Shared informer fake - Must satisfy the client-go/tools/cache/SharedInformer interface
@@ -262,14 +311,16 @@ func (f *FakeSharedInformer) LastSyncResourceVersion() string {
 	return ""
 }
 
-func (f *FakeSharedInformer) SimulateAddNamespace(name string) {
+func (f *FakeSharedInformer) SimulateAddNamespace(ns *corev1.Namespace) {
 	f.mutex.Lock()
 	defer f.mutex.Unlock()
 
-	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}
-	f.handler.OnAdd(ns)
+	f.handler.OnAdd(ns.DeepCopy())
+}
+
+func (f *FakeSharedInformer) SimulateUpdateNamespace(oldNS, newNS *corev1.Namespace) {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	f.handler.OnUpdate(oldNS.DeepCopy(), newNS.DeepCopy())
 }

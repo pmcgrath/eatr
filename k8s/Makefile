@@ -10,6 +10,7 @@ AWS_SECRET_ACCESS_KEY ?=
 AWS_USER_NAME ?= ecr-puller
 EATR_IMAGE ?= pmcgrath/eatr:latest
 K8S_AWS_CREDS_SECRET_NAME ?= eatr-aws-credentials
+K8S_ECR_SECRET_NAME_PATTERN ?= '*.dkr.ecr.*.amazonaws.com'
 K8S_NAMESPACE ?= ci-cd
 
 
@@ -27,6 +28,9 @@ k8s-prepare:
 	sed -e "s/{{NAMESPACE}}/${K8S_NAMESPACE}/" service-account-template.yaml | kubectl apply -f -
 	sed -e "s/{{ECR_IMAGE_PULL_SECRET_NAME}}/${AWS_REGISTRY_DOMAIN}/" cluster-role-template.yaml | kubectl apply -f -
 	sed -e "s/{{NAMESPACE}}/${K8S_NAMESPACE}/" cluster-role-binding-template.yaml | kubectl apply -f -
+
+
+k8s-create-aws-creds-decret:
 	./create-eatr-aws-credentials-k8s-secret.sh ${AWS_REGION} ${AWS_USER_NAME} ${K8S_NAMESPACE} ${K8S_AWS_CREDS_SECRET_NAME} ${AWS_ACCESS_KEY_ID} ${AWS_SECRET_ACCESS_KEY}
 
 

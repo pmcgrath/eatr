@@ -14,20 +14,22 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 )
 
 const (
-	allNamespacesKey   = "**all-ns**" // Is not a valid namespace name so cannot clash with an existing namespace
-	awsECRDNSPattern   = `^(?P<AccountId>\d{12})\.dkr\.ecr\.(?P<Region>.+)\.amazonaws\.com$`
-	detailiedGLogLevel = 6
-	secretDataTemplate = `{ "auths": { "%s": { "auth": "%s" } } }` // Docker config json file format, see ~/.docker/config.json
-	queueName          = "eatr"
+	allNamespacesKey               = "**all-ns**" // Is not a valid namespace name so cannot clash with an existing namespace
+	awsECRDNSPattern               = `(?P<AccountId>\d{12})\.dkr\.ecr\.(?P<Region>\w{2}-\w+-\d)\.amazonaws\.com`
+	detailiedGLogLevel             = 6
+	namespaceSecretLabelKeyPattern = `^` + awsECRDNSPattern + `$`
+	secretDataTemplate             = `{ "auths": { "%s": { "auth": "%s" } } }` // Docker config json file format, see ~/.docker/config.json
+	queueName                      = "eatr"
 )
 
 var (
-	labelAndSecretNameRegEx = regexp.MustCompile(awsECRDNSPattern) // Will use this for the host namespace AWS credential secrets and to label the target namespaces to create ECR login tokens
+	namespaceSecretLabelKeyRegEx = regexp.MustCompile(namespaceSecretLabelKeyPattern)
 )
 
 type ecrInterface interface {
@@ -41,12 +43,6 @@ type k8sInterface interface {
 	GetSecret(string, string) (*corev1.Secret, error)
 	GetSecrets(string) (*corev1.SecretList, error)
 	UpdateSecret(string, *corev1.Secret) (*corev1.Secret, error)
-}
-
-type awsCredentials struct {
-	Region string
-	Id     string
-	Secret string
 }
 
 type controller struct {
@@ -143,7 +139,7 @@ func (c *controller) runQueueConsumerLoop() {
 		glog.V(detailiedGLogLevel).Infof("Processing queue item [%s]\n", skey)
 		if err := c.renewECRImagePullSecrets(skey); err != nil {
 			// Not going to bother with retrying, could do with c.Queue.AddRateLimited(key)
-			glog.Errorf("Renew ECR image pull secrets error: %s\n", err)
+			glog.Warningf("Renew ECR image pull secrets error: %s\n", err)
 		}
 
 		c.Queue.Forget(key)
@@ -162,20 +158,20 @@ func (c *controller) renewECRImagePullSecrets(key string) error {
 	}
 
 	secretNames := c.getDistinctSecretNames(nss)
-	authTokenDataMap, err := c.createECRAuthTokenData(secretNames)
+	authTokenData, err := c.createECRAuthTokenData(secretNames)
 	if err != nil {
-		return errors.Wrap(err, "create ECR authorization token data failed")
+		return errors.Wrap(err, "create ECR authorization tokens failed")
 	}
-	if len(authTokenDataMap) == 0 {
+	if len(authTokenData) == 0 {
 		glog.V(detailiedGLogLevel).Infoln("No ECR authorization tokens created")
 		return nil
 	}
 
 	for _, ns := range nss {
 		for k, v := range ns.Labels {
-			if labelAndSecretNameRegEx.MatchString(k) && v == "true" {
-				if authTokenData, ok := authTokenDataMap[k]; ok {
-					err = c.createNamespaceSecret(ns.Name, k, authTokenData)
+			if namespaceSecretLabelKeyRegEx.MatchString(k) && v == "true" {
+				if authToken, ok := authTokenData[k]; ok {
+					err = c.createNamespaceSecret(ns.Name, k, authToken)
 					if err != nil {
 						return errors.Wrapf(err, "create namespace [%s] secret [%s] failed", ns.Name, k)
 					}
@@ -196,6 +192,7 @@ func (c *controller) renewECRImagePullSecrets(key string) error {
 	return nil
 }
 
+// Get a slice of namespaces that have a label that matches the namespace secret label key regex - special case is the all namespaces key
 func (c *controller) getNamespacesToProcess(key string) ([]corev1.Namespace, error) {
 	list := &corev1.NamespaceList{}
 	if key == allNamespacesKey {
@@ -211,17 +208,17 @@ func (c *controller) getNamespacesToProcess(key string) ([]corev1.Namespace, err
 		if err != nil {
 			return nil, errors.Wrapf(err, "get namespace [%s] failed", key)
 		}
-
 		list.Items = append(list.Items, *ns)
 	}
 
 	nss := []corev1.Namespace{}
 	for _, ns := range list.Items {
 		if ns.Status.Phase != corev1.NamespaceActive {
+			// If the host namespace or namespace is not active, skip
 			continue
 		}
 		for k, v := range ns.Labels {
-			if labelAndSecretNameRegEx.MatchString(k) && v == "true" {
+			if namespaceSecretLabelKeyRegEx.MatchString(k) && v == "true" {
 				nss = append(nss, ns)
 				break
 			}
@@ -231,42 +228,45 @@ func (c *controller) getNamespacesToProcess(key string) ([]corev1.Namespace, err
 	return nss, nil
 }
 
+// Get a slice of distinct secret names across all namespaces, secret name is a label key that matches a regex
 func (c *controller) getDistinctSecretNames(nss []corev1.Namespace) []string {
-	set := stringset{}
+	names := sets.NewString()
 	for _, ns := range nss {
 		for k, v := range ns.Labels {
-			if labelAndSecretNameRegEx.MatchString(k) && v == "true" {
-				set[k] = empty{}
+			if namespaceSecretLabelKeyRegEx.MatchString(k) && v == "true" {
+				names.Insert(k)
 			}
 		}
 	}
 
-	return set.Keys()
+	return names.List()
 }
 
+// Create ECR auth token data map, will use secrets in the host namespace to connect to AWS ECR to get this token data, will not error if secret not found, might be there the next time we try
 func (c *controller) createECRAuthTokenData(secretNames []string) (map[string]*ecr.AuthorizationData, error) {
 	res := map[string]*ecr.AuthorizationData{}
 
 	for _, secretName := range secretNames {
-		glog.V(detailiedGLogLevel).Infof("Getting namespace [%s] secret [%s]\n", c.Config.HostNamespace, secretName)
-		sec, err := c.K8S.GetSecret(c.Config.HostNamespace, secretName)
+		awsCredentialsSecretName := c.Config.AWSCredentialsSecretPrefix + "-" + secretName
+		glog.V(detailiedGLogLevel).Infof("Getting namespace [%s] AWS credentials secret [%s]\n", c.Config.HostNamespace, awsCredentialsSecretName)
+		sec, err := c.K8S.GetSecret(c.Config.HostNamespace, awsCredentialsSecretName)
 		if err != nil {
 			if k8serr.IsNotFound(err) {
-				glog.Infof("Namespace [%s] secret [%s] was not found, will skip\n", c.Config.HostNamespace, secretName)
+				glog.Infof("Namespace [%s] AWS credentials secret [%s] was not found, will skip, will not be able to satisfy label %s\n", c.Config.HostNamespace, awsCredentialsSecretName, secretName)
 				continue
 			}
-			return nil, errors.Wrapf(err, "get namespace [%s] secret [%s] failed", c.Config.HostNamespace, secretName)
+			return nil, errors.Wrapf(err, "get namespace [%s] AWS credentials secret [%s] failed", c.Config.HostNamespace, awsCredentialsSecretName)
 		}
 
 		region := string(sec.Data["aws_region"])
 		id := string(sec.Data["aws_access_key_id"])
 		secret := string(sec.Data["aws_secret_access_key"])
-		maskedId := id
+		maskedID := id
 
-		glog.V(detailiedGLogLevel).Infof("Getting AWS ECR authorization token for region [%s] and access key id [%s]\n", region, maskedId)
+		glog.V(detailiedGLogLevel).Infof("Getting AWS ECR authorization token for region [%s] and access key id [%s]\n", region, maskedID)
 		authTokenData, err := c.ECR.GetAuthToken(context.Background(), region, id, secret)
 		if err != nil {
-			return nil, errors.Wrapf(err, "get ECR authorization token failed for region [%s] and access key id [%s]", region, maskedId)
+			return nil, errors.Wrapf(err, "get ECR authorization token failed for region [%s] and access key id [%s]", region, maskedID)
 		}
 
 		res[secretName] = authTokenData
@@ -275,6 +275,7 @@ func (c *controller) createECRAuthTokenData(secretNames []string) (map[string]*e
 	return res, nil
 }
 
+// Create namespace Docker json config secret, will update if it already exists
 func (c *controller) createNamespaceSecret(nsName, secretName string, authTokenData *ecr.AuthorizationData) error {
 	endpoint := *(*authTokenData).ProxyEndpoint
 	password := *(*authTokenData).AuthorizationToken

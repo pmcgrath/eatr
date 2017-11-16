@@ -1,9 +1,9 @@
 # Purpose
 This contains a simple kubernetes controller that renews AWS ECR authorization token [image pull secrets](https://kubernetes.io/docs/concepts/containers/images/) periodically, it also needs to cater for newly created namespaces
 
-This is specifically for a kubernetes cluster not running on EC2 instances, but where we need to pull images from AWS's ECR
+This is specifically for a kubernetes cluster not running on EC2 instances, but where we need to pull images from multiple AWS ECRs
 
-Current implementation creates image pull secrets in each namespace that is not blacklisted, may change this to be based on a namespace having a specific label or annotation
+Current implementation creates image pull secrets in each namespace that have labels that matche an ECR DNS
 
 
 
@@ -11,7 +11,7 @@ Current implementation creates image pull secrets in each namespace that is not 
 ## Preparation
 - Create an AWS user that has permission to read from an AWS account registry (ecr-puller in our case)
 - Create a k8s namespace (ci-cd in our case)
-- Create a secret in the ci-cd namespace which will be used to renew the ECR authorization token (This is for the AWS IAM user that has permissions to pull all images from our AWS account registry)
+- Create a secrets in the ci-cd namespace which will be used to renew the ECR authorization tokens (This is for the AWS IAM user that has permissions to pull all images from our AWS account registies)
 - Create a k8s service account, cluster role and cluster role binding for our deployment
 - Build a docker image and push to docker hub (Nothing sensitive in the image)
 
@@ -21,10 +21,12 @@ Current implementation creates image pull secrets in each namespace that is not 
 
 
 ## How it works
-- It initially reads the AWS credentials secret
-- It initially reads all the namespaces and for each that is not blacklisted it creates a new image pull secret in the namespace based on a new ECR authorization token
-- It periodically renews the image pull secrets in all non blacklisted namespaces based on a new ECR authorization token
-- It reacts to any newly added namespaces which are not blacklisted creating a new image pull secret based on a new ECR authorization token
+- It uses a namespace informer to react to new or updated cluster namespaces
+- Initially the informer raised an add event for each of the existing cluster namespaces
+- It will try to create image pull secrets for namesapces that have labels that match a ECR DNS, if an equivalent AWS ECR credntial secret exists in the host namesapce (ci-cd)
+- It periodically renews the image pull secrets for all the cluster namesapaces
+- It reacts to any newly added or updated cluster namespaces creating new image pull secrets if appropriate labels are found
+	- Currently recreates all the cluster namespace image pull secrets as we do not expect namespaces to be modified very often
 
 
 

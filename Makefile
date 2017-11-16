@@ -1,4 +1,4 @@
-# Assumption for some targets is that the golang is already installed
+# Assumption for some targets is that golang 1.9+ is already installed
 
 
 # Switch default shell to be bash

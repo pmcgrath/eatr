@@ -10,12 +10,14 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Subset so we can test, we can fake a subset of ECR
 type ecrClient int
 
 func newECRClient() ecrClient {
 	return ecrClient(0)
 }
 
+// Need to support multiple ECR repos so we cannot relay on normal env vars or config file, hence the region id and secret args
 func (e ecrClient) GetAuthToken(ctx context.Context, region, id, secret string) (*ecr.AuthorizationData, error) {
 	creds := credentials.NewStaticCredentials(id, secret, "")
 	config := aws.NewConfig().WithCredentials(creds).WithRegion(region)

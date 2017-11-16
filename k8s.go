@@ -10,6 +10,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// Subset so we can test, this we can fake a subset of the ClientSet
 type k8sClient struct {
 	ClientSet *kubernetes.Clientset
 }
