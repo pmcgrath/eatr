@@ -44,13 +44,14 @@ func runMain() error {
 	defer glog.Flush()
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	config, err := getConfig(os.Args)
 	if err != nil {
 		return errors.Wrap(err, "getConfig failed")
 	}
-
 	glog.Infof("Starting Version=%s Branch=%s RepoVersion=%s\n", version, repoBranch, repoVersion)
+
 	glog.Infof("Starting listener on port %d\n", config.Port)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Port))
 	if err != nil {

@@ -1,7 +1,7 @@
-# Have left terraform content which indicates how to create the user's with respective policies
+# Have left terraform content which indicates how to create the AWS IAAM user's with respective policies
 # Backed out of using terrafrom here as our use case is too simple
 
-# User whose regenerated ECR authentication token will be used by k8s to pull all ECR images for this accounts registry
+# User whose regenerated ECR authentication token will be used by k8s cluster to pull all ECR images for this accounts registry
 resource "aws_iam_user" "ecr-puller" {
   name = "ecr-puller"
   path = "/"

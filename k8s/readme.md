@@ -1,8 +1,8 @@
-# Create AWS account to pull images
+# Create AWS account to pull images - should do this for each AWS account we will need to pull images from - here I assume it is okay to pull from all repositories in the registry
 - ecr-puller is the default user
-- You need to create this before completing the setup, have not included in the Makefile as there are any number of ways to manage this
+- You need to create this before you need to pull ECR images, have not included in the Makefile as there are any number of ways to manage this
 	- Included a terraform aws-ecr-users.tf file as a reference
-	- Could create with the followign aws commands
+	- Could create with the followign aws cli commands
 
 	```
 		aws iam create-user --user-name ecr-puller
@@ -12,19 +12,18 @@
 
 
 # Setup
-- PENDING - this needs fixing
-- YAML files are templates rather than manifests - Can we use for CD - See http://ksonnet.heptio.com/ and http://jsonnet.org/
+- YAML files are templates rather than manifests - Will want to use http://ksonnet.heptio.com/ and http://jsonnet.org/ in the future
 
 ```
-# Review the Makefile vars
+# Prepare k8s cluster - Namespace, service account, cluster role and cluster role binding
+make k8s-prepare
 
-# Prepare k8s cluster - Namespace, ClusterRoles, ClusterRoleBindings, etc.
-# Where you already have the ecr-puller access key
-make k8s-prepare AWS_ACCOUNT_ID=Replace-me AWS_ACCESS_KEY_ID=Replace-me AWS_SECRET_ACCESS_KEY=Replace-me
+# Add a secret for specific ECR registry - can do this multiple times
+make k8s-create-aws-creds-secret AWS_ACCOUNT_ID=Replace-me AWS_REGION=Replace-me AWS_ACCESS_KEY_ID=Replace-me AWS_SECRET_ACCESS_KEY=Replace-me
 
-# Deply eatr pod
-make k8s-deployment-up AWS_ACCOUNT_ID=Replace-me 
+# Deploy eatr deployment
+make k8s-deployment-up
 
-# Remove eatr pod
-make k8s-deployment-down AWS_ACCOUNT_ID=Replace-me 
+# Remove eatr deployment
+make k8s-deployment-down
 ```

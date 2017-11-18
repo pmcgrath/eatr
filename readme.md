@@ -1,32 +1,35 @@
 # Purpose
-This contains a simple kubernetes controller that renews AWS ECR authorization token [image pull secrets](https://kubernetes.io/docs/concepts/containers/images/) periodically, it also needs to cater for newly created namespaces
+This contains a simple kubernetes controller that renews AWS ECR authorization token [image pull secrets](https://kubernetes.io/docs/concepts/containers/images/) periodically, it also needs to cater for newly created namespaces or updated namespaces
 
 This is specifically for a kubernetes cluster not running on EC2 instances, but where we need to pull images from multiple AWS ECRs
 
-Current implementation creates image pull secrets in each namespace that have labels that matche an ECR DNS
+Current implementation creates image pull secrets in each namespace that are labeled with a key that matches a ECR DNS, this allows for using multiple ECR registries
+
+Will need to create an AWS credential secret in the ci-cd namespace for each ECR registry that we need to pull images from
 
 
 
 # Hot it works
 ## Preparation
+- See k8s/readme.md
 - Create an AWS user that has permission to read from an AWS account registry (ecr-puller in our case)
 - Create a k8s namespace (ci-cd in our case)
-- Create a secrets in the ci-cd namespace which will be used to renew the ECR authorization tokens (This is for the AWS IAM user that has permissions to pull all images from our AWS account registies)
+- Create secrets in the ci-cd namespace which will be used to renew the ECR authorization tokens (This is for the AWS IAM user that has permissions to pull all images from our AWS account registies)
 - Create a k8s service account, cluster role and cluster role binding for our deployment
 - Build a docker image and push to docker hub (Nothing sensitive in the image)
 
 
 ## Run ECR authorization token renewer instance
-- Run a deployment with this app as a single instance pod
+- Run a deployment with this app as a single instance pod, see k8s/readme.md
 
 
-## How it works
+## How the controller works
 - It uses a namespace informer to react to new or updated cluster namespaces
-- Initially the informer raised an add event for each of the existing cluster namespaces
-- It will try to create image pull secrets for namesapces that have labels that match a ECR DNS, if an equivalent AWS ECR credntial secret exists in the host namesapce (ci-cd)
-- It periodically renews the image pull secrets for all the cluster namesapaces
+- Initially the informer raises an add event for each of the existing cluster namespaces
+- It will try to create image pull secrets for namespaces that have labels that match a ECR DNS, if an equivalent AWS ECR credential secret exists in the host namesapce (ci-cd)
+- It periodically renews the image pull secrets for all the cluster namespaces, this addresses the 12 hour ECR expiry
 - It reacts to any newly added or updated cluster namespaces creating new image pull secrets if appropriate labels are found
-	- Currently recreates all the cluster namespace image pull secrets as we do not expect namespaces to be modified very often
+	- Currently recreates all the cluster namespace image pull secrets as we do not expect namespaces to be modified very often, so lets keep it simple
 
 
 
@@ -50,17 +53,14 @@ Current implementation creates image pull secrets in each namespace that have la
 	- [Heptio guidance from a while back](https://blog.heptio.com/straighten-out-your-kubernetes-client-go-dependencies-heptioprotip-8baeed46fe7d)
 - Decided not to commit the vendor directory at this time
 - Explicitly added as a .gitignore so repo is small
-- Dependency management tool
-
+- Dependency management tool, see https://github.com/golang/dep
 ```
-# See https://github.com/golang/dep
 go get -u github.com/golang/dep/cmd/dep
 ```
 
 - This has been my k8s.io dance, having already cloned client-go etc, I went with client-go tag v5.0.1
-	- I ahve been happy to go with HEAD for all the other dependencies, have not had issues
-	- I expect all the k8s.io repos will migrate from using godep to the newwe dep tool, so some of this will get easier and be out of date soon hopefully
-
+	- I have been happy to go with master for all the other dependencies, have not had issues
+	- I expect all the k8s.io repos will migrate from using godep to the new dep tool, so some of this will get easier and be out of date soon hopefully
 - I created local branches for the following k8s.io repos, while developing so I have consistent dependencies, see below for the specific commits
 
 | Repo                | Commit\Tag                               | Branch creation                                                              | Why                                    |
@@ -162,10 +162,10 @@ make image
 
 
 ## Push docker image
-- Did not bother adding a make targer
+- Did not bother adding a make target
 - Will just use automated builds in dockerhub, hence the hooks directory, see https://github.com/pmcgrath/dhab
 
 
 
 # Getting up and running on the k8s cluster
-- PENDING
+- See k8s/readme.md

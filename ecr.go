@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Subset so we can test, we can fake a subset of ECR
+// Subset so we can test, we can fake the subset of ECR that the controller needs
 type ecrClient int
 
 func newECRClient() ecrClient {

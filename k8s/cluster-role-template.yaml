@@ -1,11 +1,11 @@
 # See   https://kubernetes.io/docs/api-reference/v1.8/#clusterrole-v1beta1-rbac
 #       https://kubernetes.io/docs/api-reference/v1.8/#policyrule-v1beta1-rbac
 # Cluster role which allows
-#   Listing all namespaces
-#   Getting and updating a specific secret in each namespace - Will contain the ECR image pull secret
-#   Can't use resource names to limit the creation of secrets (Would never be able to create !), see https://kubernetes.io/docs/admin/authorization/rbac/#referring-to-resources
-#	"Because resource names are not present in the URL for create, list, watch, and delete collection API requests, those verbs would not be allowed by a rule with resourceNames set"
-
+#   Getting, listing and watching all namespaces - we need to examine the namespace labels
+#   Creating secrets in all namespaces, can't use resource names to limit the creation of secrets (Would never be able to create !), see https://kubernetes.io/docs/admin/authorization/rbac/#referring-to-resources
+#	    "Because resource names are not present in the URL for create, list, watch, and delete collection API requests, those verbs would not be allowed by a rule with resourceNames set"
+#   Need to also allow get, list and update of all secrets in all namespaces at this time
+#     Alternative is to specifically add a rule each time a new ECR registry is added using a rule with a resourceName
 
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
@@ -15,7 +15,7 @@ rules:
 - apiGroups: [""]
   resources:
   - namespaces
-  verbs: ["list", "watch"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: [""]
   resources:
   - secrets
@@ -23,5 +23,4 @@ rules:
 - apiGroups: [""]
   resources:
   - secrets
-  resourceNames: ["*.dkr.ecr.*.amazonaws.com"]  # PENDING: Can't use this, will need explicit names, so will probably need to make this dynamic, may also need list now
-  verbs: ["get", "update"]
+  verbs: ["get", "list", "update"]

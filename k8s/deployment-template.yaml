@@ -1,5 +1,3 @@
-# This is way too loose - env vars can be read easily on the host - not secret at all - need to do better - encrypted secrets at rest
-
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -18,22 +16,19 @@ spec:
       - image: {{EATR_IMAGE}}
         imagePullPolicy: Always
         name: eatr
-        env:
-        - name: AWS_ACCESS_KEY_ID
-          valueFrom:
-            secretKeyRef:
-              name: {{AWS_CREDS_SECRET_NAME}}
-              key: aws_access_key_id
-        - name: AWS_REGION
-          valueFrom:
-            secretKeyRef:
-              name: {{AWS_CREDS_SECRET_NAME}}
-              key: aws_region
-        - name: AWS_SECRET_ACCESS_KEY
-          valueFrom:
-            secretKeyRef:
-              name: {{AWS_CREDS_SECRET_NAME}}
-              key: aws_secret_access_key
         ports:
         - containerPort: 5000
+        resources:
+          limits:
+            cpu: .25
+            memory: 100Mi
+          requests:
+            cpu: .10
+            memory: 50Mi
+        securityContext:
+          allowPrivilegeEscalation: "false"
+          privileged: "false"
+          readOnlyRootFilesystem: "true"
+          runAsNonRoot: "false"
+          runAsUser: 1000
       serviceAccountName: eatr
