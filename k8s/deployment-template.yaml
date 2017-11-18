@@ -26,9 +26,9 @@ spec:
             cpu: .10
             memory: 50Mi
         securityContext:
-          allowPrivilegeEscalation: "false"
-          privileged: "false"
-          readOnlyRootFilesystem: "true"
-          runAsNonRoot: "false"
+          allowPrivilegeEscalation: false
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: false
           runAsUser: 1000
       serviceAccountName: eatr

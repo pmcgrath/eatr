@@ -148,6 +148,7 @@ func (c *controller) runQueueConsumerLoop() {
 }
 
 func (c *controller) renewECRImagePullSecrets(key string) error {
+	glog.Info("Renewing ECR image pull secrets for %s", key)
 	nss, err := c.getNamespacesToProcess(key)
 	if err != nil {
 		return errors.Wrap(err, "get namespaces to process failed")
@@ -303,5 +304,6 @@ func (c *controller) createNamespaceSecret(nsName, secretName string, authTokenD
 		return errors.Wrapf(err, "create or update of namespace [%s] secret [%s] failed", nsName, secretName)
 	}
 
+	glog.Infof("Created\\Updated namespace [%s] secret [%s]\n", nsName, secretName)
 	return nil
 }
