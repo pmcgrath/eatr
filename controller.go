@@ -148,7 +148,7 @@ func (c *controller) runQueueConsumerLoop() {
 }
 
 func (c *controller) renewECRImagePullSecrets(key string) error {
-	glog.Info("Renewing ECR image pull secrets for %s", key)
+	glog.Infof("Renewing ECR image pull secrets for %s", key)
 	nss, err := c.getNamespacesToProcess(key)
 	if err != nil {
 		return errors.Wrap(err, "get namespaces to process failed")

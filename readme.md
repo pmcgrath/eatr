@@ -44,7 +44,8 @@ Will need to create an AWS credential secret in the ci-cd namespace for each ECR
 
 
 # How to build
-- Should use golang v1.9
+- Should use golang v1.9+
+
 
 ## Dependencies
 - Deps can be tricky with client-golang
@@ -69,14 +70,13 @@ go get -u github.com/golang/dep/cmd/dep
 | k8s.io/apimachinery | 019ae5ada31de202164b118aee88ee2d14075c31 | git checkout -b pmcg-client-go-v5.0.1 019ae5ada31de202164b118aee88ee2d14075c31 | Matches client-go, see below         |
 | k8s.io/client-go    | v5.0.1                                   | git checkout -b pmcg-client-go-v5.0.1 v5.0.1                                   | Matches clinet-go matrix for k8s 1.8 |
 
-
 ```
 # Initialise the vendor dir
 dep init -v
 
 # Now check client-go deps for a specific tag
 pushd .
-cd ~/go/src/k9
+cd ~/go/src/k8s/client-go
 
 ## List tags
 git tag -l
@@ -107,17 +107,6 @@ echo $(git show $the_tag:Godeps/Godeps.json) | jq -r '.Deps[] | select(.ImportPa
 # Now lets re-populate the vendor directory
 popd
 dep ensure -v
-
-
-# Can I use these ?
-dep ensure -v k8s.io/client-go@v5.0.1
-dep ensure -v k8s.io/apimachinery@abe34e4f5b4413c282a83011892cbeea5b32223b
-```
-
-- What are the k8s.io rep deps for client-go
-```
-# Find all go files with a '"k8s.io' content in a line, using the " sperator get import package name, using the / separator get the second field - this is the k8s.io repo name
-#grep -r '"k8s.io' --include '*.go' -w ~/go/src/k8s.io/client-go | awk 'BEGIN{ FS="\"" }; { print $2 }' | awk 'BEGIN{ FS="/" }; {print $2}' | sort | uniq
 ```
 
 - I have commited the Gopkg.toml and Gopkg.lock dep files, so you should be able to restore the vendor directory with
@@ -142,18 +131,20 @@ make build
 # Run with fast renew all loop (20 seconds), informers resync interval (5 seconds) and verbose logging (6, to see more glog logs from the client-go componemts can use 9)
 ./eatr \
   -auth-token-renewal-interval 20s \
-  -informers-resync-interval 5s \ 
-  -logging-verbosity-level 6 
+  -informers-resync-interval 5s \
+  -logging-verbosity-level 6
 
-# Can see metrics with 
+# Can see metrics with
 curl localhost:5000/metrics
 ```
 
 
-## Build docker image - Will build a statically linked binary via a multistage docker file, needs a recent docker CE and will be slow......
+## Build docker image
+- Will build a statically linked binary via a multi-stage docker file, needs a recent docker CE and will be slow......
+
 ```
 # Passing version via make arg
-make image VERSION=30 
+make image VERSION=30
 
 # Using VERSION file - prefered method
 # edit VERSION
@@ -168,4 +159,9 @@ make image
 
 
 # Getting up and running on the k8s cluster
+- See k8s/readme.md
+
+
+
+# Clean up - removing content from the cluster
 - See k8s/readme.md
