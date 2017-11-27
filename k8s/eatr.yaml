@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ci-cd
+
+---
+
+
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eatr
+  namespace: ci-cd
+
+---
+
+
+
+# See   https://kubernetes.io/docs/api-reference/v1.8/#clusterrole-v1beta1-rbac
+#       https://kubernetes.io/docs/api-reference/v1.8/#policyrule-v1beta1-rbac
+# Cluster role which allows
+#   Getting, listing and watching all namespaces - we need to examine the namespace labels
+#   Creating secrets in all namespaces, can't use resource names to limit the creation of secrets (Would never be able to create !), see https://kubernetes.io/docs/admin/authorization/rbac/#referring-to-resources
+#	    "Because resource names are not present in the URL for create, list, watch, and delete collection API requests, those verbs would not be allowed by a rule with resourceNames set"
+#   Need to also allow get, list and update of all secrets in all namespaces at this time
+#     Alternative is to specifically add a rule each time a new ECR registry is added using a rule with a resourceName
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: eatr
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources:
+  - secrets
+  verbs: ["create"]
+- apiGroups: [""]
+  resources:
+  - secrets
+  verbs: ["get", "list", "update"]
+
+---
+
+
+
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: eatr
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: eatr
+subjects:
+- kind: ServiceAccount
+  name: eatr
+  namespace: ci-cd
+
+---
+
+
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    name: eatr
+  name: eatr
+  namespace: ci-cd
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: eatr
+    spec:
+      containers:
+      - image: pmcgrath/eatr:0.2
+        imagePullPolicy: Always
+        name: eatr
+        ports:
+        - containerPort: 5000
+        resources:
+          limits:
+            cpu: .25
+            memory: 100Mi
+          requests:
+            cpu: .10
+            memory: 50Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: false
+          runAsUser: 1000
+      serviceAccountName: eatr
