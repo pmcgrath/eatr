@@ -8,6 +8,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -50,7 +51,7 @@ func runMain() error {
 	if err != nil {
 		return errors.Wrap(err, "getConfig failed")
 	}
-	glog.Infof("Starting Version=%s Branch=%s RepoVersion=%s\n", version, repoBranch, repoVersion)
+	glog.Infof("Starting Version=%s Branch=%s RepoVersion=%s golang=%s\n", version, repoBranch, repoVersion, runtime.Version())
 
 	glog.Infof("Starting listener on port %d\n", config.Port)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Port))

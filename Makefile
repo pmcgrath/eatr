@@ -49,6 +49,7 @@ build-static:
 
 
 image:
+	@echo '** NOTE This can take about 10 minutes, be patient'
 	docker image build \
 		--build-arg BUILD_DATE=${BUILD_DATE} \
 		--build-arg REPO_BRANCH=${REPO_BRANCH} \

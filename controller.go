@@ -51,15 +51,15 @@ type controller struct {
 	NamespaceListerSynced cache.InformerSynced
 	Queue                 workqueue.RateLimitingInterface
 	ECR                   ecrInterface
-	SecretsCounter        prometheus.Counter
+	SecretsCounter        *prometheus.CounterVec
 	SecretRenewalsCounter prometheus.Counter
 }
 
 func newController(config config, k8sClient k8sInterface, informer cache.SharedInformer, prometheusRegistry *prometheus.Registry, ecrClient ecrInterface) (*controller, error) {
-	secretsCounter := prometheus.NewCounter(prometheus.CounterOpts{
+	secretsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "secrets_created_total",
 		Help: "Number of secrets that have been created\\updated.",
-	})
+	}, []string{"namespace", "name"})
 	secretRenewalsCounter := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "secret_renewals_total",
 		Help: "Number of secret renewals made.",
@@ -176,7 +176,7 @@ func (c *controller) renewECRImagePullSecrets(key string) error {
 					if err != nil {
 						return errors.Wrapf(err, "create namespace [%s] secret [%s] failed", ns.Name, k)
 					}
-					c.SecretsCounter.Inc()
+					c.SecretsCounter.WithLabelValues(ns.Name, k).Inc()
 				} else {
 					glog.V(detailiedGLogLevel).Infof("Skipping for namespace [%s] secret [%s], no ECR authorization token found\n", ns.Name, k)
 				}

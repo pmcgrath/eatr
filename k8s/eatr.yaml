@@ -64,7 +64,7 @@ subjects:
 
 
 
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
@@ -73,23 +73,27 @@ metadata:
   namespace: ci-cd
 spec:
   replicas: 1
+  selector:
+  selector:
+    matchLabels:
+      name: eatr
   template:
     metadata:
       labels:
         name: eatr
     spec:
       containers:
-      - image: pmcgrath/eatr:0.2
+      - image: pmcgrath/eatr:0.3
         imagePullPolicy: Always
         name: eatr
         ports:
         - containerPort: 5000
         resources:
           limits:
-            cpu: .25
+            cpu: ".25"
             memory: 100Mi
           requests:
-            cpu: .10
+            cpu: ".10"
             memory: 50Mi
         securityContext:
           allowPrivilegeEscalation: false

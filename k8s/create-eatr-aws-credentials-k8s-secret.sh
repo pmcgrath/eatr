@@ -1,6 +1,7 @@
 #!/bin/bash
 # Assumes
-#	If AWS access key's not passed, AWS credentials are configured allowing us make the "aws iam create-access-key" call and the region are configured
+#	If AWS access key's not passed, AWS credentials are configured allowing us make the "aws iam create-access-key" call and the region is configured
+#	An ECR registry is configured for the AWS account
 #	Kubeconfig exists and has privileges to write the secret into the ci-cd namespace
 # Will need awscli and kubectl
 # Will overwrite existing secret if it exists !!!!!!! You may run into the AWS max limit of 2 access keys per IAM user !!!!!
