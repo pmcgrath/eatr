@@ -99,6 +99,6 @@ spec:
           allowPrivilegeEscalation: false
           privileged: false
           readOnlyRootFilesystem: true
-          runAsNonRoot: false
+          runAsNonRoot: true
           runAsUser: 1000
       serviceAccountName: eatr

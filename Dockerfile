@@ -1,4 +1,4 @@
-ARG        GO_VERSION=1.9.2
+ARG        GO_VERSION=1.11.5
 
 # Builder image
 FROM       golang:${GO_VERSION} as builder
